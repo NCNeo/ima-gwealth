@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IMA Platform — GWealth</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #C9A84C;
+    --gold-light: #E8C97A;
+    --gold-dim: #8A6B28;
+    --dark: #0A0C0F;
+    --dark-2: #111318;
+    --dark-3: #181C23;
+    --dark-4: #1E2330;
+    --border: rgba(201,168,76,0.15);
+    --border-strong: rgba(201,168,76,0.35);
+    --text: #F0EDE6;
+    --text-muted: #7A7D85;
+    --text-dim: #4A4D55;
+    --success: #2ECC8A;
+    --warning: #E8A030;
+    --danger: #E85050;
+    --blue: #4A8FE8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--dark-2); }
+  ::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 2px; }
+
+  /* LOGIN SCREEN */
+  .login-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--dark);
+    position: relative;
+    overflow: hidden;
+  }
+  .login-bg {
+    position: absolute; inset: 0;
+    background: 
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(201,168,76,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 40% at 80% 80%, rgba(201,168,76,0.06) 0%, transparent 50%);
+  }
+  .login-grid {
+    position: absolute; inset: 0;
+    background-image: 
+      linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+  .login-card {
+    position: relative;
+    width: 420px;
+    padding: 56px 48px;
+    background: var(--dark-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 2px;
+    text-align: center;
+  }
+  .login-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 10%; right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+  .login-logo-wrap {
+    width: 72px; height: 72px;
+    margin: 0 auto 28px;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--dark-3);
+    position: relative;
+  }
+  .login-logo-wrap::after {
+    content: '';
+    position: absolute; inset: -4px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+  }
+  .login-logo-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 2px;
+  }
+  .login-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px; font-weight: 300;
+    color: var(--text);
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .login-subtitle {
+    font-size: 12px; color: var(--text-muted);
+    letter-spacing: 2px; text-transform: uppercase;
+    margin-bottom: 40px;
+  }
+  .login-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+    margin-bottom: 36px;
+  }
+  .login-btn {
+    width: 100%;
+    padding: 14px 24px;
+    background: transparent;
+    border: 1px solid var(--gold-dim);
+    color: var(--gold-light);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 500;
+    letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    border-radius: 1px;
+    position: relative; overflow: hidden;
+  }
+  .login-btn::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(201,168,76,0.1), transparent);
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .login-btn:hover::before { opacity: 1; }
+  .login-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .login-note { font-size: 11px; color: var(--text-dim); margin-top: 20px; }
+
+  /* APP SHELL */
+  .app { display: flex; min-height: 100vh; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 240px; min-width: 240px;
+    background: var(--dark-2);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    position: fixed; top: 0; left: 0; bottom: 0;
+    z-index: 100;
+  }
+  .sidebar-logo {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .sidebar-logo-icon {
+    width: 36px; height: 36px;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--dark-3);
+    flex-shrink: 0;
+  }
+  .sidebar-logo-icon span {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 14px; font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 1px;
+  }
+  .sidebar-logo-text { line-height: 1.2; }
+  .sidebar-logo-text .name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px; font-weight: 600;
+    color: var(--text); letter-spacing: 0.5px;
+  }
+  .sidebar-logo-text .sub {
+    font-size: 9px; color: var(--text-muted);
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+  .sidebar-nav { padding: 16px 12px; flex: 1; overflow-y: auto; }
+  .nav-section-label {
+    font-size: 9px; color: var(--text-dim);
+    letter-spacing: 2.5px; text-transform: uppercase;
+    padding: 8px 12px 6px;
+    margin-top: 8px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-muted);
+    font-size: 13px; font-weight: 400;
+    margin-bottom: 1px;
+    border: 1px solid transparent;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(201,168,76,0.05); }
+  .nav-item.active {
+    color: var(--gold-light);
+    background: rgba(201,168,76,0.08);
+    border-color: var(--border);
+  }
+  .nav-item .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+  .nav-badge {
+    margin-left: auto;
+    background: var(--gold-dim);
+    color: var(--dark);
+    font-size: 10px; font-weight: 700;
+    padding: 2px 6px; border-radius: 10px;
+    min-width: 18px; text-align: center;
+  }
+  .sidebar-footer {
+    padding: 16px 12px;
+    border-top: 1px solid var(--border);
+  }
+  .user-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    background: var(--dark-3);
+  }
+  .user-avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold-dim), var(--gold));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: var(--dark);
+    flex-shrink: 0;
+  }
+  .user-info .uname { font-size: 12px; font-weight: 500; color: var(--text); }
+  .user-info .uemail { font-size: 10px; color: var(--text-muted); }
+  .logout-btn {
+    margin-top: 8px; width: 100%;
+    padding: 7px; background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted); font-size: 11px;
+    cursor: pointer; border-radius: 2px;
+    letter-spacing: 1px; text-transform: uppercase;
+    transition: all 0.2s;
+  }
+  .logout-btn:hover { color: var(--danger); border-color: var(--danger); }
+
+  /* MAIN */
+  .main { margin-left: 240px; flex: 1; min-height: 100vh; }
+  .topbar {
+    height: 56px; padding: 0 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--dark-2);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px; font-weight: 400; color: var(--text);
+    letter-spacing: 0.5px;
+  }
+  .topbar-actions { display: flex; align-items: center; gap: 12px; }
+  .topbar-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 1px;
+    font-size: 11px; color: var(--text-muted);
+    background: var(--dark-3);
+  }
+  .topbar-badge .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--success); animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .page { padding: 32px; }
+
+  /* KPI CARDS */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .kpi-card {
+    background: var(--dark-2);
+    border: 1px solid var(--border);
+    border-radius: 2px; padding: 24px;
+    position: relative; overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .kpi-card:hover { border-color: var(--border-strong); }
+  .kpi-card::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .kpi-card:hover::after { opacity: 1; }
+  .kpi-label { font-size: 10px; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+  .kpi-value {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 36px; font-weight: 300; color: var(--text);
+    line-height: 1; margin-bottom: 8px;
+  }
+  .kpi-value .unit { font-size: 18px; color: var(--gold); margin-right: 4px; }
+  .kpi-change { font-size: 11px; display: flex; align-items: center; gap: 4px; }
+  .kpi-change.up { color: var(--success); }
+  .kpi-change.neutral { color: var(--text-muted); }
+  .kpi-icon {
+    position: absolute; right: 20px; top: 20px;
+    font-size: 28px; opacity: 0.12;
+  }
+
+  /* SECTION HEADER */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .section-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; font-weight: 400; color: var(--text);
+  }
+  .section-title span { color: var(--gold); }
+
+  /* BUTTONS */
+  .btn {
+    padding: 9px 20px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px; font-weight: 500;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    cursor: pointer; border-radius: 1px;
+    transition: all 0.2s; border: 1px solid;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-primary {
+    background: transparent;
+    border-color: var(--gold-dim);
+    color: var(--gold-light);
+  }
+  .btn-primary:hover { border-color: var(--gold); background: rgba(201,168,76,0.08); }
+  .btn-ghost {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-muted);
+  }
+  .btn-ghost:hover { border-color: var(--border-strong); color: var(--text); }
+  .btn-danger {
+    background: transparent;
+    border-color: rgba(232,80,80,0.3);
+    color: var(--danger);
+  }
+  .btn-sm { padding: 6px 14px; font-size: 10px; }
+
+  /* TABLE */
+  .table-wrap {
+    background: var(--dark-2);
+    border: 1px solid var(--border);
+    border-radius: 2px; overflow: hidden;
+  }
+  .table-toolbar {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .search-input {
+    flex: 1; max-width: 320px;
+    padding: 8px 14px;
+    background: var(--dark-3);
+    border: 1px solid var(--border);
+    border-radius: 1px;
+    color: var(--text); font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none; transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--gold-dim); }
+  .search-input::placeholder { color: var(--text-dim); }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { border-bottom: 1px solid var(--border); }
+  th {
+    padding: 12px 20px;
+    text-align: left;
+    font-size: 10px; font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 2px; text-transform: uppercase;
+    background: var(--dark-3);
+  }
+  td {
+    padding: 14px 20px;
+    font-size: 13px; color: var(--text);
+    border-bottom: 1px solid rgba(201,168,76,0.05);
+  }
+  tr:hover td { background: rgba(201,168,76,0.03); }
+  tr:last-child td { border-bottom: none; }
+
+  /* BADGES */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 1px;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+    border: 1px solid;
+  }
+  .badge-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .badge-gold { background: rgba(201,168,76,0.1); border-color: rgba(201,168,76,0.3); color: var(--gold-light); }
+  .badge-gold .badge-dot { background: var(--gold); }
+  .badge-green { background: rgba(46,204,138,0.1); border-color: rgba(46,204,138,0.3); color: var(--success); }
+  .badge-green .badge-dot { background: var(--success); }
+  .badge-blue { background: rgba(74,143,232,0.1); border-color: rgba(74,143,232,0.3); color: var(--blue); }
+  .badge-blue .badge-dot { background: var(--blue); }
+  .badge-orange { background: rgba(232,160,48,0.1); border-color: rgba(232,160,48,0.3); color: var(--warning); }
+  .badge-orange .badge-dot { background: var(--warning); }
+  .badge-red { background: rgba(232,80,80,0.1); border-color: rgba(232,80,80,0.3); color: var(--danger); }
+  .badge-red .badge-dot { background: var(--danger); }
+  .badge-gray { background: rgba(122,125,133,0.1); border-color: rgba(122,125,133,0.3); color: var(--text-muted); }
+  .badge-gray .badge-dot { background: var(--text-muted); }
+
+  /* LOADING */
+  .loading-wrap { padding: 60px 20px; text-align: center; }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 12px; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; }
+
+  /* ERROR */
+  .error-wrap {
+    padding: 20px; margin: 16px 0;
+    background: rgba(232,80,80,0.08);
+    border: 1px solid rgba(232,80,80,0.2);
+    border-radius: 2px;
+    font-size: 13px; color: var(--danger);
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  /* EMPTY STATE */
+  .empty-state { padding: 60px 20px; text-align: center; }
+  .empty-icon { font-size: 40px; opacity: 0.2; margin-bottom: 16px; }
+  .empty-title { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--text-muted); margin-bottom: 6px; }
+  .empty-sub { font-size: 12px; color: var(--text-dim); }
+
+  /* GRID CARDS */
+  .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .asset-card {
+    background: var(--dark-2);
+    border: 1px solid var(--border);
+    border-radius: 2px; padding: 24px;
+    cursor: pointer; transition: all 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .asset-card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .asset-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--gold-dim), transparent);
+  }
+  .asset-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .asset-name { font-family: 'Cormorant Garamond', serif; font-size: 17px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .asset-location { font-size: 11px; color: var(--text-muted); }
+  .asset-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .asset-metric-label { font-size: 9px; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 3px; }
+  .asset-metric-value { font-size: 14px; font-weight: 500; color: var(--text); }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(10,12,15,0.85);
+    z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    backdrop-filter: blur(4px);
+  }
+  .modal {
+    background: var(--dark-2);
+    border: 1px solid var(--border-strong);
+    border-radius: 2px;
+    width: 100%; max-width: 640px;
+    max-height: 85vh; overflow-y: auto;
+    position: relative;
+  }
+  .modal::before {
+    content: '';
+    position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+  .modal-header {
+    padding: 24px 28px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-title { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 400; color: var(--text); }
+  .modal-close {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); width: 30px; height: 30px;
+    border-radius: 1px; cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .modal-close:hover { border-color: var(--danger); color: var(--danger); }
+  .modal-body { padding: 24px 28px; }
+  .modal-footer { padding: 16px 28px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* FORM */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; }
+  .form-input, .form-select, .form-textarea {
+    padding: 10px 14px;
+    background: var(--dark-3);
+    border: 1px solid var(--border);
+    border-radius: 1px;
+    color: var(--text); font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none; transition: border-color 0.2s;
+    width: 100%;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--gold-dim); }
+  .form-select option { background: var(--dark-3); }
+  .form-textarea { resize: vertical; min-height: 80px; }
+
+  /* DETAIL PANEL */
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .detail-item { }
+  .detail-label { font-size: 9px; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+  .detail-value { font-size: 13px; color: var(--text); }
+  .detail-section-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 16px; color: var(--gold);
+    margin: 20px 0 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* HITOS */
+  .hito-item {
+    display: flex; gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .hito-item:last-child { border-bottom: none; }
+  .hito-indicator {
+    width: 8px; height: 8px; border-radius: 50%;
+    margin-top: 4px; flex-shrink: 0;
+  }
+  .hito-info { flex: 1; }
+  .hito-title { font-size: 13px; color: var(--text); margin-bottom: 3px; }
+  .hito-meta { font-size: 11px; color: var(--text-muted); }
+
+  /* TABS */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .tab {
+    padding: 10px 20px;
+    font-size: 12px; font-weight: 500;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--text-muted);
+    cursor: pointer; transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--gold-light); border-bottom-color: var(--gold); }
+
+  /* APPROVAL FLOW */
+  .approval-step {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 20px;
+    border: 1px solid var(--border);
+    border-radius: 2px; margin-bottom: 8px;
+    background: var(--dark-3);
+  }
+  .approval-step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: var(--gold);
+    flex-shrink: 0;
+  }
+  .approval-step-info { flex: 1; }
+  .approval-step-name { font-size: 13px; color: var(--text); }
+  .approval-step-role { font-size: 11px; color: var(--text-muted); }
+
+  /* RESPONSIVE */
+  @media (max-width: 1200px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .cards-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+// ============================================================
+// CONFIG — Reemplaza con tus valores reales
+// ============================================================
+const CONFIG = {
+  clientId: "93b3b0ca-0a85-46ee-baab-83e5057fe6ef",
+  tenantId: "3ba3bb69-adc5-4b25-8b0b-ae30ae6add15",
+  redirectUri: window.location.origin,
+  scopes: ["https://graph.microsoft.com/Sites.ReadWrite.All", "https://graph.microsoft.com/Files.ReadWrite.All"],
+  // Actualiza con el ID real de tu sitio SharePoint
+  // Para obtenerlo: GET https://graph.microsoft.com/v1.0/sites?search=gwealth
+  sharePointSiteId: "PENDIENTE_CONFIGURAR",
+};
+
+// MSAL Instance
+const msalInstance = new msal.PublicClientApplication({
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+    redirectUri: CONFIG.redirectUri,
+  },
+  cache: { cacheLocation: "sessionStorage" },
+});
+
+// ============================================================
+// GRAPH API HELPER
+// ============================================================
+async function callGraph(endpoint) {
+  try {
+    const accounts = msalInstance.getAllAccounts();
+    if (!accounts.length) throw new Error("No hay sesión activa");
+    const tokenRes = await msalInstance.acquireTokenSilent({
+      scopes: CONFIG.scopes,
+      account: accounts[0],
+    });
+    const res = await fetch(`https://graph.microsoft.com/v1.0${endpoint}`, {
+      headers: { Authorization: `Bearer ${tokenRes.accessToken}` },
+    });
+    if (!res.ok) throw new Error(`Graph API error: ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    // Intentar login interactivo si el token expiró
+    if (e.name === "InteractionRequiredAuthError") {
+      await msalInstance.acquireTokenPopup({ scopes: CONFIG.scopes });
+    }
+    throw e;
+  }
+}
+
+async function postGraph(endpoint, body) {
+  const accounts = msalInstance.getAllAccounts();
+  const tokenRes = await msalInstance.acquireTokenSilent({
+    scopes: CONFIG.scopes,
+    account: accounts[0],
+  });
+  const res = await fetch(`https://graph.microsoft.com/v1.0${endpoint}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenRes.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Error: ${res.status}`);
+  return await res.json();
+}
+
+// ============================================================
+// UTILITY
+// ============================================================
+function getEtapaBadge(etapa) {
+  const map = {
+    "Negociación": { cls: "badge-orange", label: "Negociación" },
+    "Onboarding": { cls: "badge-blue", label: "Onboarding" },
+    "Ventas": { cls: "badge-gold", label: "Ventas" },
+    "Due Diligence": { cls: "badge-orange", label: "Due Diligence" },
+    "Funding": { cls: "badge-blue", label: "Funding" },
+    "Financiamiento": { cls: "badge-blue", label: "Financiamiento" },
+    "Post Closing": { cls: "badge-green", label: "Post Closing" },
+    "Cerrado": { cls: "badge-green", label: "Cerrado" },
+    "Descartado": { cls: "badge-red", label: "Descartado" },
+  };
+  const b = map[etapa] || { cls: "badge-gray", label: etapa || "—" };
+  return <span className={`badge ${b.cls}`}><span className="badge-dot"></span>{b.label}</span>;
+}
+
+function fmtMoney(val) {
+  if (!val) return "—";
+  const n = parseFloat(val);
+  if (isNaN(n)) return val;
+  if (n >= 1000000) return `$${(n/1000000).toFixed(1)}M`;
+  if (n >= 1000) return `$${(n/1000).toFixed(0)}K`;
+  return `$${n.toLocaleString()}`;
+}
+
+function fmtDate(val) {
+  if (!val) return "—";
+  try { return new Date(val).toLocaleDateString("es-CO", { year: "numeric", month: "short", day: "numeric" }); }
+  catch { return val; }
+}
+
+// ============================================================
+// COMPONENTS
+// ============================================================
+
+// LOADING
+function Loading({ text = "Cargando datos..." }) {
+  return (
+    <div className="loading-wrap">
+      <div className="spinner"></div>
+      <div className="loading-text">{text}</div>
+    </div>
+  );
+}
+
+// ERROR
+function ErrorMsg({ msg }) {
+  return (
+    <div className="error-wrap">
+      ⚠️ {msg}
+    </div>
+  );
+}
+
+// LOGIN SCREEN
+function LoginScreen({ onLogin, loading }) {
+  return (
+    <div className="login-screen">
+      <div className="login-bg"></div>
+      <div className="login-grid"></div>
+      <div className="login-card">
+        <div className="login-logo-wrap">
+          <span className="login-logo-text">IMA</span>
+        </div>
+        <div className="login-title">GWealth Platform</div>
+        <div className="login-subtitle">Investment Management</div>
+        <div className="login-divider"></div>
+        <button className="login-btn" onClick={onLogin} disabled={loading}>
+          {loading ? (
+            <><div className="spinner" style={{width:16,height:16,borderWidth:2}}></div> Autenticando...</>
+          ) : (
+            <><span>⊞</span> Ingresar con Microsoft</>
+          )}
+        </button>
+        <div className="login-note">Acceso restringido — Solo personal autorizado de GWealth</div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function Dashboard({ siteId }) {
+  const [data, setData] = useState({ proyectos: [], activos: [], inversionistas: [], inversiones: [], hitos: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function load() {
+      if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
+        // Datos demo cuando no está configurado el siteId
+        setData({
+          proyectos: [
+            { id:1, fields: { Title:"Brickell Office Tower", Etapa_x0020_Actual:"Funding", Monto_x0020_Target:"8500000", Monto_x0020_Levantado:"6200000", Nombre_x0020_de_x0020_la_x0020_L:"GW Brickell LLC", Responsable_x0020_Operativo:"Sebastián Correa" }},
+            { id:2, fields: { Title:"Aventura Retail Plaza", Etapa_x0020_Actual:"Ventas", Monto_x0020_Target:"12000000", Monto_x0020_Levantado:"3400000", Nombre_x0020_de_x0020_la_x0020_L:"GW Aventura LLC", Responsable_x0020_Operativo:"Pedro García" }},
+            { id:3, fields: { Title:"Doral Warehouse Complex", Etapa_x0020_Actual:"Due Diligence", Monto_x0020_Target:"5500000", Monto_x0020_Levantado:"5500000", Nombre_x0020_de_x0020_la_x0020_L:"GW Doral LLC", Responsable_x0020_Operativo:"Juan Sebastián" }},
+            { id:4, fields: { Title:"Coral Gables Office", Etapa_x0020_Actual:"Post Closing", Monto_x0020_Target:"9000000", Monto_x0020_Levantado:"9000000", Nombre_x0020_de_x0020_la_x0020_L:"GW Coral LLC", Responsable_x0020_Operativo:"Sebastián Correa" }},
+          ],
+          activos: [
+            { id:1, fields: { Title:"Tower 1851 Brickell", Tipo_x0020_de_x0020_activo:"Oficinas", Estado:"Activo", Ciudad:"Miami", Precio_x0020_Oferta:"8200000", Cap_x0020_Rate_x0020___x0025_:"5.8" }},
+            { id:2, fields: { Title:"Aventura Mall Strip", Tipo_x0020_de_x0020_activo:"Retail", Estado:"En Evaluación", Ciudad:"Aventura", Precio_x0020_Oferta:"11500000", Cap_x0020_Rate_x0020___x0025_:"6.2" }},
+            { id:3, fields: { Title:"Doral Industrial Park", Tipo_x0020_de_x0020_activo:"Bodega", Estado:"Activo", Ciudad:"Doral", Precio_x0020_Oferta:"5200000", Cap_x0020_Rate_x0020___x0025_:"7.1" }},
+          ],
+          inversionistas: [
+            { id:1, fields: { Title:"Carlos Mendoza", Tipo_x0020_de_x0020_Inversionista:"Persona Natural", Email:"cmendoza@email.com", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Aprobado", Gestor_x0020_de_x0020_cuenta:"Camila Osorio" }},
+            { id:2, fields: { Title:"Inversiones Omega S.A.", Tipo_x0020_de_x0020_Inversionista:"Persona Jurídica", Email:"info@omega.com", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Pendiente", Gestor_x0020_de_x0020_cuenta:"Camila Osorio" }},
+            { id:3, fields: { Title:"Roberto Jiménez", Tipo_x0020_de_x0020_Inversionista:"Persona Natural", Email:"rjimenez@email.com", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Aprobado", Gestor_x0020_de_x0020_cuenta:"Pedro García" }},
+          ],
+          inversiones: [
+            { id:1, fields: { Title:"Mendoza - Brickell", Monto:"500000", Estado:"Pagado" }},
+            { id:2, fields: { Title:"Omega - Aventura", Monto:"1200000", Estado:"Hard Deposit" }},
+            { id:3, fields: { Title:"Jiménez - Doral", Monto:"350000", Estado:"Full Payment" }},
+          ],
+          hitos: [
+            { id:1, fields: { Title:"Firma SA Brickell", Tipo_x0020_Hito:"Contrato", Estado_x0020_Aprobacion:"Aprobado", Proyecto_x0020__x003A__x0020_Tit:"Brickell Office Tower", Aprobado_x002F__x0020_Completado_x0020_por:"Juan Sebastián" }},
+            { id:2, fields: { Title:"Brochure Aventura", Tipo_x0020_Hito:"Aprobación", Estado_x0020_Aprobacion:"Pendiente", Proyecto_x0020__x003A__x0020_Tit:"Aventura Retail Plaza", Solicitado_x0020_por:"Sebastián Correa" }},
+            { id:3, fields: { Title:"LOI Doral", Tipo_x0020_Hito:"Legal", Estado_x0020_Aprobacion:"En Revisión", Proyecto_x0020__x003A__x0020_Tit:"Doral Warehouse Complex", Solicitado_x0020_por:"Pedro García" }},
+          ]
+        });
+        setLoading(false);
+        return;
+      }
+      try {
+        const [proyRes, actRes, invRes, inversionRes, hitoRes] = await Promise.all([
+          callGraph(`/sites/${siteId}/lists/Proyectos de Inversión/items?$expand=fields`),
+          callGraph(`/sites/${siteId}/lists/Activos Inmobiliarios/items?$expand=fields`),
+          callGraph(`/sites/${siteId}/lists/Inversionistas/items?$expand=fields`),
+          callGraph(`/sites/${siteId}/lists/Inversiones (Inversionista × Proyecto)/items?$expand=fields`),
+          callGraph(`/sites/${siteId}/lists/Hitos y Aprobaciones/items?$expand=fields`),
+        ]);
+        setData({
+          proyectos: proyRes.value || [],
+          activos: actRes.value || [],
+          inversionistas: invRes.value || [],
+          inversiones: inversionRes.value || [],
+          hitos: hitoRes.value || [],
+        });
+      } catch(e) { setError(e.message); }
+      finally { setLoading(false); }
+    }
+    load();
+  }, [siteId]);
+
+  if (loading) return <Loading text="Cargando plataforma..." />;
+
+  const totalTarget = data.proyectos.reduce((s, p) => s + parseFloat(p.fields.Monto_x0020_Target || 0), 0);
+  const totalLevantado = data.proyectos.reduce((s, p) => s + parseFloat(p.fields.Monto_x0020_Levantado || 0), 0);
+  const pctFunded = totalTarget > 0 ? Math.round((totalLevantado / totalTarget) * 100) : 0;
+  const pendientes = data.hitos.filter(h => h.fields.Estado_x0020_Aprobacion === "Pendiente").length;
+
+  return (
+    <div className="page">
+      {error && <ErrorMsg msg={`Modo demo activo — ${error}`} />}
+
+      <div className="kpi-grid">
+        <div className="kpi-card">
+          <div className="kpi-icon">📁</div>
+          <div className="kpi-label">Proyectos Activos</div>
+          <div className="kpi-value">{data.proyectos.length}</div>
+          <div className="kpi-change neutral">Proyectos en portafolio</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon">💰</div>
+          <div className="kpi-label">Capital Levantado</div>
+          <div className="kpi-value"><span className="unit">$</span>{(totalLevantado/1000000).toFixed(1)}M</div>
+          <div className="kpi-change up">▲ {pctFunded}% del target</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon">👤</div>
+          <div className="kpi-label">Inversionistas</div>
+          <div className="kpi-value">{data.inversionistas.length}</div>
+          <div className="kpi-change neutral">En portafolio activo</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-icon">⏳</div>
+          <div className="kpi-label">Aprobaciones Pendientes</div>
+          <div className="kpi-value" style={{color: pendientes > 0 ? 'var(--warning)' : 'var(--text)'}}>{pendientes}</div>
+          <div className="kpi-change neutral">Requieren acción</div>
+        </div>
+      </div>
+
+      {/* Proyectos recientes */}
+      <div className="section-header">
+        <div className="section-title">Proyectos <span>Activos</span></div>
+      </div>
+      <div className="table-wrap" style={{marginBottom: 32}}>
+        <table>
+          <thead>
+            <tr>
+              <th>Proyecto</th>
+              <th>LLC</th>
+              <th>Etapa</th>
+              <th>Target</th>
+              <th>Levantado</th>
+              <th>Responsable</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.proyectos.map(p => (
+              <tr key={p.id}>
+                <td style={{fontWeight:500}}>{p.fields.Title}</td>
+                <td style={{color:'var(--text-muted)', fontSize:12}}>{p.fields.Nombre_x0020_de_x0020_la_x0020_L || "—"}</td>
+                <td>{getEtapaBadge(p.fields.Etapa_x0020_Actual)}</td>
+                <td>{fmtMoney(p.fields.Monto_x0020_Target)}</td>
+                <td style={{color:'var(--success)'}}>{fmtMoney(p.fields.Monto_x0020_Levantado)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.Responsable_x0020_Operativo || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Hitos pendientes */}
+      <div className="section-header">
+        <div className="section-title">Hitos y <span>Aprobaciones</span></div>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Hito</th>
+              <th>Proyecto</th>
+              <th>Tipo</th>
+              <th>Estado</th>
+              <th>Responsable</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.hitos.map(h => (
+              <tr key={h.id}>
+                <td style={{fontWeight:500}}>{h.fields.Title}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["Proyecto_x0020__x003A__x0020_Tit"] || h.fields.Proyecto || "—"}</td>
+                <td style={{fontSize:12}}>{h.fields.Tipo_x0020_Hito || "—"}</td>
+                <td>{getEtapaBadge(h.fields.Estado_x0020_Aprobacion)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["Aprobado_x002F__x0020_Completado_x0020_por"] || h.fields.Solicitado_x0020_por || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// PROYECTOS PAGE
+// ============================================================
+function ProyectosPage({ siteId }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ Title:"", Etapa_x0020_Actual:"Negociación", Monto_x0020_Target:"", Nombre_x0020_de_x0020_la_x0020_L:"", Responsable_x0020_Operativo:"" });
+
+  useEffect(() => {
+    async function load() {
+      if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
+        setItems([
+          { id:1, fields: { Title:"Brickell Office Tower", Etapa_x0020_Actual:"Funding", Monto_x0020_Target:"8500000", Monto_x0020_Levantado:"6200000", Nombre_x0020_de_x0020_la_x0020_L:"GW Brickell LLC", Responsable_x0020_Operativo:"Sebastián Correa", Fecha_x0020_LOI:"2025-09-15", Descripcion_x0020_del_x0020_Activ:"Edificio de oficinas clase A en el corazón de Brickell, Miami." }},
+          { id:2, fields: { Title:"Aventura Retail Plaza", Etapa_x0020_Actual:"Ventas", Monto_x0020_Target:"12000000", Monto_x0020_Levantado:"3400000", Nombre_x0020_de_x0020_la_x0020_L:"GW Aventura LLC", Responsable_x0020_Operativo:"Pedro García", Fecha_x0020_LOI:"2025-10-01" }},
+          { id:3, fields: { Title:"Doral Warehouse Complex", Etapa_x0020_Actual:"Due Diligence", Monto_x0020_Target:"5500000", Monto_x0020_Levantado:"5500000", Nombre_x0020_de_x0020_la_x0020_L:"GW Doral LLC", Responsable_x0020_Operativo:"Juan Sebastián", Fecha_x0020_LOI:"2025-08-20" }},
+          { id:4, fields: { Title:"Coral Gables Office", Etapa_x0020_Actual:"Post Closing", Monto_x0020_Target:"9000000", Monto_x0020_Levantado:"9000000", Nombre_x0020_de_x0020_la_x0020_L:"GW Coral LLC", Responsable_x0020_Operativo:"Sebastián Correa", Fecha_x0020_LOI:"2025-07-10" }},
+        ]);
+        setLoading(false); return;
+      }
+      try {
+        const res = await callGraph(`/sites/${siteId}/lists/Proyectos de Inversión/items?$expand=fields&$top=100`);
+        setItems(res.value || []);
+      } catch(e) { setError(e.message); }
+      finally { setLoading(false); }
+    }
+    load();
+  }, [siteId]);
+
+  const filtered = items.filter(i => i.fields.Title?.toLowerCase().includes(search.toLowerCase()));
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (siteId && siteId !== "PENDIENTE_CONFIGURAR") {
+        await postGraph(`/sites/${siteId}/lists/Proyectos de Inversión/items`, { fields: form });
+        const res = await callGraph(`/sites/${siteId}/lists/Proyectos de Inversión/items?$expand=fields&$top=100`);
+        setItems(res.value || []);
+      } else {
+        setItems(prev => [...prev, { id: Date.now(), fields: { ...form } }]);
+      }
+      setShowModal(false);
+      setForm({ Title:"", Etapa_x0020_Actual:"Negociación", Monto_x0020_Target:"", Nombre_x0020_de_x0020_la_x0020_L:"", Responsable_x0020_Operativo:"" });
+    } catch(e) { alert("Error al guardar: " + e.message); }
+    finally { setSaving(false); }
+  }
+
+  if (loading) return <Loading />;
+
+  return (
+    <div className="page">
+      {error && <ErrorMsg msg={`Demo activo — ${error}`} />}
+      <div className="section-header">
+        <div className="section-title">Proyectos de <span>Inversión</span></div>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Nuevo Proyecto</button>
+      </div>
+
+      <div className="table-wrap">
+        <div className="table-toolbar">
+          <input className="search-input" placeholder="Buscar proyecto..." value={search} onChange={e => setSearch(e.target.value)} />
+          <span style={{fontSize:12, color:'var(--text-muted)', marginLeft:'auto'}}>{filtered.length} proyectos</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Proyecto</th>
+              <th>LLC</th>
+              <th>Etapa</th>
+              <th>Target</th>
+              <th>Levantado</th>
+              <th>LOI</th>
+              <th>Responsable</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 && (
+              <tr><td colSpan="8"><div className="empty-state"><div className="empty-icon">📁</div><div className="empty-title">Sin proyectos</div></div></td></tr>
+            )}
+            {filtered.map(p => (
+              <tr key={p.id}>
+                <td style={{fontWeight:500}}>{p.fields.Title}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.Nombre_x0020_de_x0020_la_x0020_L || "—"}</td>
+                <td>{getEtapaBadge(p.fields.Etapa_x0020_Actual)}</td>
+                <td>{fmtMoney(p.fields.Monto_x0020_Target)}</td>
+                <td style={{color:'var(--success)'}}>{fmtMoney(p.fields.Monto_x0020_Levantado)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(p.fields.Fecha_x0020_LOI)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.Responsable_x0020_Operativo || "—"}</td>
+                <td><button className="btn btn-ghost btn-sm" onClick={() => setSelected(p)}>Ver</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODAL NUEVO */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Nuevo Proyecto</div>
+              <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group full">
+                  <label className="form-label">Nombre del Proyecto *</label>
+                  <input className="form-input" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} placeholder="Ej: Brickell Office Tower" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Nombre LLC</label>
+                  <input className="form-input" value={form.Nombre_x0020_de_x0020_la_x0020_L} onChange={e => setForm({...form, Nombre_x0020_de_x0020_la_x0020_L: e.target.value})} placeholder="GW ... LLC" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Etapa Actual</label>
+                  <select className="form-select" value={form.Etapa_x0020_Actual} onChange={e => setForm({...form, Etapa_x0020_Actual: e.target.value})}>
+                    {["Negociación","Onboarding","Ventas","Due Diligence","Funding","Financiamiento","Post Closing","Cerrado","Descartado"].map(e => <option key={e}>{e}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Monto Target (USD)</label>
+                  <input className="form-input" type="number" value={form.Monto_x0020_Target} onChange={e => setForm({...form, Monto_x0020_Target: e.target.value})} placeholder="5000000" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Responsable Operativo</label>
+                  <input className="form-input" value={form.Responsable_x0020_Operativo} onChange={e => setForm({...form, Responsable_x0020_Operativo: e.target.value})} placeholder="Nombre del responsable" />
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.Title}>
+                {saving ? "Guardando..." : "Crear Proyecto"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETALLE */}
+      {selected && (
+        <div className="modal-overlay" onClick={() => setSelected(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">{selected.fields.Title}</div>
+              <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{marginBottom:8}}>{getEtapaBadge(selected.fields.Etapa_x0020_Actual)}</div>
+              <div className="detail-section-title">Información General</div>
+              <div className="detail-grid">
+                <div className="detail-item"><div className="detail-label">LLC</div><div className="detail-value">{selected.fields.Nombre_x0020_de_x0020_la_x0020_L || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Responsable Operativo</div><div className="detail-value">{selected.fields.Responsable_x0020_Operativo || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Monto Target</div><div className="detail-value" style={{color:'var(--gold)'}}>{fmtMoney(selected.fields.Monto_x0020_Target)}</div></div>
+                <div className="detail-item"><div className="detail-label">Monto Levantado</div><div className="detail-value" style={{color:'var(--success)'}}>{fmtMoney(selected.fields.Monto_x0020_Levantado)}</div></div>
+                <div className="detail-item"><div className="detail-label">Fecha LOI</div><div className="detail-value">{fmtDate(selected.fields.Fecha_x0020_LOI)}</div></div>
+                <div className="detail-item"><div className="detail-label">Estado LLC</div><div className="detail-value">{selected.fields.Estado_x0020_LLC || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Responsable Finanzas</div><div className="detail-value">{selected.fields.Responsable_x0020_Finanzas || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Fecha Cierre Est.</div><div className="detail-value">{fmtDate(selected.fields.Fecha_x0020_Cierre_x0020_Estimado)}</div></div>
+              </div>
+              {selected.fields["Descripcion_x0020_del_x0020_Activ"] && (
+                <>
+                  <div className="detail-section-title">Descripción</div>
+                  <p style={{fontSize:13, color:'var(--text-muted)', lineHeight:1.6}}>{selected.fields["Descripcion_x0020_del_x0020_Activ"]}</p>
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setSelected(null)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// ACTIVOS PAGE
+// ============================================================
+function ActivosPage({ siteId }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
+        setItems([
+          { id:1, fields: { Title:"Tower 1851 Brickell", Tipo_x0020_de_x0020_activo:"Oficinas", Estado:"Activo", Ciudad:"Miami", Estado__x002F__x0020_Provincia:"Florida", Precio_x0020_Oferta:"8200000", "Cap_x0020_Rate_x0020___x0025_":"5.8", Criterio_x0020_Location:"Sí", Criterio_x0020_Tenant:"Sí", "Criterio_x0020_Tesis_x0020_de_x0020_inversion":"Sí", Broker_x0020_Referente:"Marcus & Millichap" }},
+          { id:2, fields: { Title:"Aventura Mall Strip", Tipo_x0020_de_x0020_activo:"Retail", Estado:"En Evaluación", Ciudad:"Aventura", Estado__x002F__x0020_Provincia:"Florida", Precio_x0020_Oferta:"11500000", "Cap_x0020_Rate_x0020___x0025_":"6.2", Criterio_x0020_Location:"Sí", Criterio_x0020_Tenant:"Pendiente", "Criterio_x0020_Tesis_x0020_de_x0020_inversion":"Sí", Broker_x0020_Referente:"CBRE" }},
+          { id:3, fields: { Title:"Doral Industrial Park", Tipo_x0020_de_x0020_activo:"Bodega", Estado:"Activo", Ciudad:"Doral", Estado__x002F__x0020_Provincia:"Florida", Precio_x0020_Oferta:"5200000", "Cap_x0020_Rate_x0020___x0025_":"7.1", Criterio_x0020_Location:"Sí", Criterio_x0020_Tenant:"Sí", "Criterio_x0020_Tesis_x0020_de_x0020_inversion":"Sí", Broker_x0020_Referente:"JLL" }},
+        ]);
+        setLoading(false); return;
+      }
+      try {
+        const res = await callGraph(`/sites/${siteId}/lists/Activos Inmobiliarios/items?$expand=fields&$top=100`);
+        setItems(res.value || []);
+      } catch(e) {}
+      finally { setLoading(false); }
+    }
+    load();
+  }, [siteId]);
+
+  const filtered = items.filter(i => i.fields.Title?.toLowerCase().includes(search.toLowerCase()));
+
+  const criterioCheck = (val) => val === "Sí" || val === true
+    ? <span style={{color:'var(--success)'}}>✓</span>
+    : val === "No" || val === false
+    ? <span style={{color:'var(--danger)'}}>✗</span>
+    : <span style={{color:'var(--text-dim)'}}>—</span>;
+
+  if (loading) return <Loading />;
+
+  return (
+    <div className="page">
+      <div className="section-header">
+        <div className="section-title">Activos <span>Inmobiliarios</span></div>
+      </div>
+      <div className="table-wrap">
+        <div className="table-toolbar">
+          <input className="search-input" placeholder="Buscar activo..." value={search} onChange={e => setSearch(e.target.value)} />
+          <span style={{fontSize:12, color:'var(--text-muted)', marginLeft:'auto'}}>{filtered.length} activos</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Activo</th>
+              <th>Tipo</th>
+              <th>Ciudad</th>
+              <th>Precio Oferta</th>
+              <th>Cap Rate</th>
+              <th>Location</th>
+              <th>Tenant</th>
+              <th>Tesis</th>
+              <th>Broker</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(a => (
+              <tr key={a.id}>
+                <td style={{fontWeight:500}}>{a.fields.Title}</td>
+                <td><span className="badge badge-gray">{a.fields.Tipo_x0020_de_x0020_activo || "—"}</span></td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{a.fields.Ciudad || "—"}</td>
+                <td style={{color:'var(--gold)'}}>{fmtMoney(a.fields.Precio_x0020_Oferta)}</td>
+                <td style={{color:'var(--success)'}}>{a.fields["Cap_x0020_Rate_x0020___x0025_"] ? `${a.fields["Cap_x0020_Rate_x0020___x0025_"]}%` : "—"}</td>
+                <td style={{textAlign:'center'}}>{criterioCheck(a.fields.Criterio_x0020_Location)}</td>
+                <td style={{textAlign:'center'}}>{criterioCheck(a.fields.Criterio_x0020_Tenant)}</td>
+                <td style={{textAlign:'center'}}>{criterioCheck(a.fields["Criterio_x0020_Tesis_x0020_de_x0020_inversion"])}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{a.fields.Broker_x0020_Referente || "—"}</td>
+                <td>{getEtapaBadge(a.fields.Estado)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// INVERSIONISTAS PAGE
+// ============================================================
+function InversionistasPage({ siteId }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ Title:"", Tipo_x0020_de_x0020_Inversionista:"Persona Natural", Email:"", "Telefono_x0020___x002F__x0020_Wh":"", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Pendiente", Gestor_x0020_de_x0020_cuenta:"" });
+
+  useEffect(() => {
+    async function load() {
+      if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
+        setItems([
+          { id:1, fields: { Title:"Carlos Mendoza", Tipo_x0020_de_x0020_Inversionista:"Persona Natural", Email:"cmendoza@email.com", "Telefono_x0020___x002F__x0020_Wh":"+1 305 555 0101", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Aprobado", Gestor_x0020_de_x0020_cuenta:"Camila Osorio", City:"Miami", Country:"USA", Inversionista_x0020_Nuevo:"No" }},
+          { id:2, fields: { Title:"Inversiones Omega S.A.", Tipo_x0020_de_x0020_Inversionista:"Persona Jurídica", Email:"info@omega.com", "Telefono_x0020___x002F__x0020_Wh":"+1 786 555 0202", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Pendiente", Gestor_x0020_de_x0020_cuenta:"Camila Osorio", City:"Bogotá", Country:"Colombia", Inversionista_x0020_Nuevo:"Sí" }},
+          { id:3, fields: { Title:"Roberto Jiménez", Tipo_x0020_de_x0020_Inversionista:"Persona Natural", Email:"rjimenez@email.com", "Telefono_x0020___x002F__x0020_Wh":"+57 300 555 0303", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Aprobado", Gestor_x0020_de_x0020_cuenta:"Pedro García", City:"Medellín", Country:"Colombia", Inversionista_x0020_Nuevo:"No" }},
+        ]);
+        setLoading(false); return;
+      }
+      try {
+        const res = await callGraph(`/sites/${siteId}/lists/Inversionistas/items?$expand=fields&$top=100`);
+        setItems(res.value || []);
+      } catch(e) {}
+      finally { setLoading(false); }
+    }
+    load();
+  }, [siteId]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (siteId && siteId !== "PENDIENTE_CONFIGURAR") {
+        await postGraph(`/sites/${siteId}/lists/Inversionistas/items`, { fields: form });
+        const res = await callGraph(`/sites/${siteId}/lists/Inversionistas/items?$expand=fields&$top=100`);
+        setItems(res.value || []);
+      } else {
+        setItems(prev => [...prev, { id: Date.now(), fields: { ...form } }]);
+      }
+      setShowModal(false);
+    } catch(e) { alert("Error: " + e.message); }
+    finally { setSaving(false); }
+  }
+
+  const filtered = items.filter(i => i.fields.Title?.toLowerCase().includes(search.toLowerCase()));
+
+  if (loading) return <Loading />;
+
+  return (
+    <div className="page">
+      <div className="section-header">
+        <div className="section-title"><span>Inversionistas</span></div>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Nuevo Inversionista</button>
+      </div>
+      <div className="table-wrap">
+        <div className="table-toolbar">
+          <input className="search-input" placeholder="Buscar inversionista..." value={search} onChange={e => setSearch(e.target.value)} />
+          <span style={{fontSize:12, color:'var(--text-muted)', marginLeft:'auto'}}>{filtered.length} inversionistas</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th>Email</th>
+              <th>Teléfono</th>
+              <th>KYC / DD</th>
+              <th>Ciudad</th>
+              <th>Gestor</th>
+              <th>Nuevo</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(inv => (
+              <tr key={inv.id}>
+                <td style={{fontWeight:500}}>{inv.fields.Title}</td>
+                <td><span className="badge badge-gray" style={{fontSize:9}}>{inv.fields.Tipo_x0020_de_x0020_Inversionista || "—"}</span></td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields.Email || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields["Telefono_x0020___x002F__x0020_Wh"] || "—"}</td>
+                <td>{getEtapaBadge(inv.fields.Estado_x0020_KYC_x0020___x002F___x0020_DD)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields.City || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields.Gestor_x0020_de_x0020_cuenta || "—"}</td>
+                <td style={{fontSize:12, textAlign:'center'}}>{inv.fields.Inversionista_x0020_Nuevo === "Sí" ? <span style={{color:'var(--warning)'}}>Nuevo</span> : <span style={{color:'var(--text-dim)'}}>—</span>}</td>
+                <td><button className="btn btn-ghost btn-sm" onClick={() => setSelected(inv)}>Ver</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Nuevo Inversionista</div>
+              <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group full">
+                  <label className="form-label">Nombre Completo / Razón Social *</label>
+                  <input className="form-input" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Tipo de Inversionista</label>
+                  <select className="form-select" value={form.Tipo_x0020_de_x0020_Inversionista} onChange={e => setForm({...form, Tipo_x0020_de_x0020_Inversionista: e.target.value})}>
+                    <option>Persona Natural</option>
+                    <option>Persona Jurídica</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Estado KYC / DD</label>
+                  <select className="form-select" value={form.Estado_x0020_KYC_x0020___x002F___x0020_DD} onChange={e => setForm({...form, Estado_x0020_KYC_x0020___x002F___x0020_DD: e.target.value})}>
+                    <option>Pendiente</option>
+                    <option>En Revisión</option>
+                    <option>Aprobado</option>
+                    <option>Rechazado</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input className="form-input" type="email" value={form.Email} onChange={e => setForm({...form, Email: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Teléfono / WhatsApp</label>
+                  <input className="form-input" value={form["Telefono_x0020___x002F__x0020_Wh"]} onChange={e => setForm({...form, "Telefono_x0020___x002F__x0020_Wh": e.target.value})} />
+                </div>
+                <div className="form-group full">
+                  <label className="form-label">Gestor de Cuenta</label>
+                  <input className="form-input" value={form.Gestor_x0020_de_x0020_cuenta} onChange={e => setForm({...form, Gestor_x0020_de_x0020_cuenta: e.target.value})} />
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.Title}>
+                {saving ? "Guardando..." : "Crear Inversionista"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selected && (
+        <div className="modal-overlay" onClick={() => setSelected(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">{selected.fields.Title}</div>
+              <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{marginBottom:12, display:'flex', gap:8}}>
+                <span className="badge badge-gray">{selected.fields.Tipo_x0020_de_x0020_Inversionista}</span>
+                {getEtapaBadge(selected.fields.Estado_x0020_KYC_x0020___x002F___x0020_DD)}
+              </div>
+              <div className="detail-section-title">Datos de Contacto</div>
+              <div className="detail-grid">
+                <div className="detail-item"><div className="detail-label">Email</div><div className="detail-value">{selected.fields.Email || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Teléfono / WhatsApp</div><div className="detail-value">{selected.fields["Telefono_x0020___x002F__x0020_Wh"] || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Ciudad</div><div className="detail-value">{selected.fields.City || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">País</div><div className="detail-value">{selected.fields.Country || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Representante Legal</div><div className="detail-value">{selected.fields.Representante_x0020_Legal || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Gestor de Cuenta</div><div className="detail-value">{selected.fields.Gestor_x0020_de_x0020_cuenta || "—"}</div></div>
+              </div>
+              <div className="detail-section-title">Datos Bancarios</div>
+              <div className="detail-grid">
+                <div className="detail-item"><div className="detail-label">Banco</div><div className="detail-value">{selected.fields["Banco_x0020__x0028_para_x0020_di"] || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Tipo de Cuenta</div><div className="detail-value">{selected.fields.Tipo_x0020_de_x0020_Cuenta_x0020_B || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Routing / ABA</div><div className="detail-value">{selected.fields["Routing_x0020___x002F__x0020_ABA_"] || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Titular Cuenta</div><div className="detail-value">{selected.fields.Nombre_x0020_Titular_x0020_Cuenta || "—"}</div></div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setSelected(null)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// HITOS PAGE
+// ============================================================
+function HitosPage({ siteId }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("Todos");
+
+  useEffect(() => {
+    async function load() {
+      if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
+        setItems([
+          { id:1, fields: { Title:"Firma SA Brickell", Tipo_x0020_Hito:"Contrato", Estado_x0020_Aprobacion:"Aprobado", "Proyecto_x0020__x003A__x0020_Tit":"Brickell Office Tower", Solicitado_x0020_por:"Sebastián Correa", "Aprobado_x002F__x0020_Completado_x0020_por":"Juan Sebastián", Fecha_x0020_de_x0020_Solicitud:"2025-09-20", Link_x0020_al_x0020_documento_x00:"https://sharepoint.com" }},
+          { id:2, fields: { Title:"Aprobación Brochure Aventura", Tipo_x0020_Hito:"Aprobación", Estado_x0020_Aprobacion:"Pendiente", "Proyecto_x0020__x003A__x0020_Tit":"Aventura Retail Plaza", Solicitado_x0020_por:"Pedro García", Fecha_x0020_de_x0020_Solicitud:"2025-10-05" }},
+          { id:3, fields: { Title:"LOI Doral Warehouse", Tipo_x0020_Hito:"Legal", Estado_x0020_Aprobacion:"En Revisión", "Proyecto_x0020__x003A__x0020_Tit":"Doral Warehouse Complex", Solicitado_x0020_por:"Juan Sebastián", Fecha_x0020_de_x0020_Solicitud:"2025-10-10" }},
+          { id:4, fields: { Title:"EIN Coral Gables", Tipo_x0020_Hito:"Legal", Estado_x0020_Aprobacion:"Aprobado", "Proyecto_x0020__x003A__x0020_Tit":"Coral Gables Office", Solicitado_x0020_por:"Paula Arbeláez", "Aprobado_x002F__x0020_Completado_x0020_por":"Abogados", Fecha_x0020_de_x0020_Solicitud:"2025-07-15" }},
+          { id:5, fields: { Title:"DD Inversionista Omega", Tipo_x0020_Hito:"Due Diligence", Estado_x0020_Aprobacion:"Pendiente", "Proyecto_x0020__x003A__x0020_Tit":"Aventura Retail Plaza", Solicitado_x0020_por:"Camila Osorio", Fecha_x0020_de_x0020_Solicitud:"2025-10-15" }},
+        ]);
+        setLoading(false); return;
+      }
+      try {
+        const res = await callGraph(`/sites/${siteId}/lists/Hitos y Aprobaciones/items?$expand=fields&$top=100`);
+        setItems(res.value || []);
+      } catch(e) {}
+      finally { setLoading(false); }
+    }
+    load();
+  }, [siteId]);
+
+  const estados = ["Todos", "Pendiente", "En Revisión", "Aprobado", "Rechazado"];
+  const filtered = filter === "Todos" ? items : items.filter(i => i.fields.Estado_x0020_Aprobacion === filter);
+
+  if (loading) return <Loading />;
+
+  return (
+    <div className="page">
+      <div className="section-header">
+        <div className="section-title">Hitos y <span>Aprobaciones</span></div>
+      </div>
+      <div className="tabs">
+        {estados.map(e => (
+          <div key={e} className={`tab ${filter === e ? 'active' : ''}`} onClick={() => setFilter(e)}>
+            {e} {e !== "Todos" && <span style={{opacity:0.6}}>({items.filter(i => i.fields.Estado_x0020_Aprobacion === e).length})</span>}
+          </div>
+        ))}
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Hito</th>
+              <th>Proyecto</th>
+              <th>Tipo</th>
+              <th>Estado</th>
+              <th>Solicitado por</th>
+              <th>Aprobado por</th>
+              <th>Fecha Solicitud</th>
+              <th>Documento</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(h => (
+              <tr key={h.id}>
+                <td style={{fontWeight:500}}>{h.fields.Title}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["Proyecto_x0020__x003A__x0020_Tit"] || h.fields.Proyecto || "—"}</td>
+                <td><span className="badge badge-gray" style={{fontSize:9}}>{h.fields.Tipo_x0020_Hito || "—"}</span></td>
+                <td>{getEtapaBadge(h.fields.Estado_x0020_Aprobacion)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields.Solicitado_x0020_por || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["Aprobado_x002F__x0020_Completado_x0020_por"] || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(h.fields.Fecha_x0020_de_x0020_Solicitud)}</td>
+                <td>
+                  {h.fields.Link_x0020_al_x0020_documento_x00
+                    ? <a href={h.fields.Link_x0020_al_x0020_documento_x00} target="_blank" style={{color:'var(--gold)', fontSize:12}}>Ver doc ↗</a>
+                    : <span style={{color:'var(--text-dim)', fontSize:12}}>—</span>}
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan="8"><div className="empty-state"><div className="empty-icon">✓</div><div className="empty-title">Sin registros en esta categoría</div></div></td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// MAIN APP
+// ============================================================
+function App() {
+  const [user, setUser] = useState(null);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [page, setPage] = useState("dashboard");
+  const [siteId, setSiteId] = useState(CONFIG.sharePointSiteId);
+  const [initDone, setInitDone] = useState(false);
+
+  useEffect(() => {
+    async function init() {
+      try {
+        await msalInstance.initialize();
+        const res = await msalInstance.handleRedirectPromise();
+        if (res) setUser(res.account);
+        else {
+          const accounts = msalInstance.getAllAccounts();
+          if (accounts.length) setUser(accounts[0]);
+        }
+      } catch(e) { console.error(e); }
+      setInitDone(true);
+    }
+    init();
+  }, []);
+
+  async function handleLogin() {
+    setLoginLoading(true);
+    try {
+      const res = await msalInstance.loginPopup({ scopes: CONFIG.scopes });
+      setUser(res.account);
+      // Intentar obtener el siteId automáticamente
+      try {
+        const sitesRes = await callGraph("/sites?search=gwealth");
+        if (sitesRes.value && sitesRes.value.length > 0) {
+          setSiteId(sitesRes.value[0].id);
+        }
+      } catch(e) { console.warn("No se pudo obtener siteId automáticamente"); }
+    } catch(e) { console.error(e); }
+    setLoginLoading(false);
+  }
+
+  function handleLogout() {
+    msalInstance.logoutPopup();
+    setUser(null);
+  }
+
+  if (!initDone) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}><Loading text="Iniciando..." /></div>;
+  if (!user) return <LoginScreen onLogin={handleLogin} loading={loginLoading} />;
+
+  const initials = user.name?.split(" ").slice(0,2).map(n => n[0]).join("").toUpperCase() || "GW";
+
+  const navItems = [
+    { id:"dashboard", icon:"◈", label:"Dashboard" },
+    { id:"proyectos", icon:"📁", label:"Proyectos" },
+    { id:"activos", icon:"🏢", label:"Activos" },
+    { id:"inversionistas", icon:"👤", label:"Inversionistas" },
+    { id:"hitos", icon:"✓", label:"Hitos & Aprobaciones" },
+  ];
+
+  const pageTitles = {
+    dashboard: "Dashboard",
+    proyectos: "Proyectos de Inversión",
+    activos: "Activos Inmobiliarios",
+    inversionistas: "Inversionistas",
+    hitos: "Hitos y Aprobaciones",
+  };
+
+  return (
+    <div className="app">
+      <div className="sidebar">
+        <div className="sidebar-logo">
+          <div className="sidebar-logo-icon"><span>IMA</span></div>
+          <div className="sidebar-logo-text">
+            <div className="name">GWealth</div>
+            <div className="sub">Investment Mgmt</div>
+          </div>
+        </div>
+        <div className="sidebar-nav">
+          <div className="nav-section-label">Plataforma</div>
+          {navItems.map(item => (
+            <div key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => setPage(item.id)}>
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+            </div>
+          ))}
+        </div>
+        <div className="sidebar-footer">
+          <div className="user-card">
+            <div className="user-avatar">{initials}</div>
+            <div className="user-info">
+              <div className="uname">{user.name?.split(" ")[0] || "Usuario"}</div>
+              <div className="uemail">{user.username?.split("@")[0]}</div>
+            </div>
+          </div>
+          <button className="logout-btn" onClick={handleLogout}>Cerrar Sesión</button>
+        </div>
+      </div>
+
+      <div className="main">
+        <div className="topbar">
+          <div className="topbar-title">{pageTitles[page]}</div>
+          <div className="topbar-actions">
+            <div className="topbar-badge">
+              <div className="dot"></div>
+              {siteId !== "PENDIENTE_CONFIGURAR" ? "Conectado a SharePoint" : "Modo Demo"}
+            </div>
+          </div>
+        </div>
+
+        {page === "dashboard" && <Dashboard siteId={siteId} />}
+        {page === "proyectos" && <ProyectosPage siteId={siteId} />}
+        {page === "activos" && <ActivosPage siteId={siteId} />}
+        {page === "inversionistas" && <InversionistasPage siteId={siteId} />}
+        {page === "hitos" && <HitosPage siteId={siteId} />}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
