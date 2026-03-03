@@ -1517,16 +1517,13 @@ function HitosPage({ siteId }) {
                 <td><span className="badge badge-gray" style={{fontSize:9}}>{h.fields.TipoHito || "—"}</span></td>
                 <td>{getEtapaBadge(h.fields.EstadoAprobaci_x00f3_n)}</td>
                 <td style={{fontSize:12, color:'var(--text-muted)'}}>{users[`${siteId}_${h.fields.SolicitadoporLookupId}`] || "—"}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields.Observacionesocomentarios || "—"}</td>
                 <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(h.fields.FechadeSolicitud)}</td>
                 <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(h.fields["FechadeResoluci_x00f3_n"])}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)', maxWidth:180}}>
-                  {h.fields.Observacionesocomentarios || "—"}
-                </td>
+                <td style={{fontSize:12, color:'var(--text-muted)', maxWidth:180}}>{h.fields.Observacionesocomentarios || "—"}</td>
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan="8"><div className="empty-state"><div className="empty-icon">✓</div><div className="empty-title">Sin registros en esta categoría</div></div></td></tr>
+              <tr><td colSpan="9"><div className="empty-state"><div className="empty-icon">✓</div><div className="empty-title">Sin registros en esta categoría</div></div></td></tr>
             )}
           </tbody>
         </table>
