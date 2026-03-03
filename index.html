@@ -300,10 +300,9 @@
   .kpi-card:hover::after { opacity: 1; }
   .kpi-label { font-size: 10px; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
   .kpi-value {
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Cormorant Garamond', serif;
     font-size: 36px; font-weight: 300; color: var(--text);
     line-height: 1; margin-bottom: 8px;
-    font-variant-numeric: tabular-nums lining-nums;
   }
   .kpi-value .unit { font-size: 18px; color: var(--gold); margin-right: 4px; }
   .kpi-change { font-size: 11px; display: flex; align-items: center; gap: 4px; }
@@ -906,14 +905,14 @@ function Dashboard({ siteInv, siteProy }) {
                 <td>{getEtapaBadge(p.fields.EtapaActual)}</td>
                 <td>{fmtMoney(p.fields.MontoTarget)}</td>
                 <td style={{color:'var(--success)'}}>{fmtMoney(p.fields.MontoLevantado)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.ResponsableOperativo || userCache[`${siteProy}_${p.fields.ResponsableOperativoLookupId}`] || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.ResponsableOperativo || p.createdBy?.user?.displayName?.split(" ")[0] || "—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      {/* Hitos pendientes */
+      {/* Hitos pendientes */}
       <div className="section-header">
         <div className="section-title">Hitos y <span>Aprobaciones</span></div>
       </div>
@@ -932,10 +931,10 @@ function Dashboard({ siteInv, siteProy }) {
             {data.hitos.map(h => (
               <tr key={h.id}>
                 <td style={{fontWeight:500}}>{h.fields.Title}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["NombreProyecto"] || h.fields["Proyecto_x003a__x0020_T_x00ed_tuLookupId"] || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["NombreProyecto"] || h.createdBy?.user?.displayName || "—"}</td>
                 <td style={{fontSize:12}}>{h.fields.TipoHito || "—"}</td>
                 <td>{getEtapaBadge(h.fields.EstadoAprobaci_x00f3_n)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["AprobadoCompletadopor"] || userCache[`${siteProy}_${h.fields.SolicitadoporLookupId}`] || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["AprobadoCompletadopor"] || h.createdBy?.user?.displayName?.split(" ")[0] || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -957,7 +956,7 @@ function ProyectosPage({ siteId }) {
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
   const [users, setUsers] = useState({});
-  const [form, setForm] = useState({ Title:"", EtapaActual:"Etapa 1: Evaluación", MontoTarget:"", MontoLevantado:"", NombredelaLLC:"", FechaLOI:"", FechaCierreEstimado:"", EstadoLLC:"Pendiente", EstadoCuentaBancaria:"Pendiente" });
+  const [form, setForm] = useState({ Title:"", EtapaActual:"Negociación", MontoTarget:"", NombredelaLLC:"", ResponsableOperativo:"" });
 
   useEffect(() => {
     async function load() {
@@ -996,7 +995,7 @@ function ProyectosPage({ siteId }) {
         setItems(prev => [...prev, { id: Date.now(), fields: { ...form } }]);
       }
       setShowModal(false);
-      setForm({ Title:"", EtapaActual:"Etapa 1: Evaluación", MontoTarget:"", MontoLevantado:"", NombredelaLLC:"", FechaLOI:"", FechaCierreEstimado:"", EstadoLLC:"Pendiente", EstadoCuentaBancaria:"Pendiente" });
+      setForm({ Title:"", EtapaActual:"Negociación", MontoTarget:"", NombredelaLLC:"", ResponsableOperativo:"" });
     } catch(e) { alert("Error al guardar: " + e.message); }
     finally { setSaving(false); }
   }
@@ -1019,21 +1018,19 @@ function ProyectosPage({ siteId }) {
         <table>
           <thead>
             <tr>
-              <th>Nombre del Proyecto</th>
+              <th>Proyecto</th>
               <th>LLC</th>
-              <th>Etapa Actual</th>
-              <th>Monto Target</th>
-              <th>Monto Levantado</th>
-              <th>Fecha LOI</th>
-              <th>Fecha Cierre Est.</th>
-              <th>Estado LLC</th>
-              <th>Responsable Op.</th>
+              <th>Etapa</th>
+              <th>Target</th>
+              <th>Levantado</th>
+              <th>LOI</th>
+              <th>Responsable</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan="10"><div className="empty-state"><div className="empty-icon">📁</div><div className="empty-title">Sin proyectos</div></div></td></tr>
+              <tr><td colSpan="8"><div className="empty-state"><div className="empty-icon">📁</div><div className="empty-title">Sin proyectos</div></div></td></tr>
             )}
             {filtered.map(p => (
               <tr key={p.id}>
@@ -1043,9 +1040,7 @@ function ProyectosPage({ siteId }) {
                 <td>{fmtMoney(p.fields.MontoTarget)}</td>
                 <td style={{color:'var(--success)'}}>{fmtMoney(p.fields.MontoLevantado)}</td>
                 <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(p.fields.FechaLOI)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(p.fields.FechaCierreEstimado)}</td>
-                <td>{getEtapaBadge(p.fields.EstadoLLC)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{users[`${siteId}_${p.fields.ResponsableOperativoLookupId}`] || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.ResponsableOperativo || users[`${siteId}_${p.fields.ResponsableOperativoLookupId}`] || "—"}</td>
                 <td><button className="btn btn-ghost btn-sm" onClick={() => setSelected(p)}>Ver</button></td>
               </tr>
             ))}
@@ -1065,51 +1060,31 @@ function ProyectosPage({ siteId }) {
               <div className="form-grid">
                 <div className="form-group full">
                   <label className="form-label">Nombre del Proyecto *</label>
-                  <input className="form-input" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} placeholder="Ej: Brickell Office Tower" required />
+                  <input className="form-input" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} placeholder="Ej: Brickell Office Tower" />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Nombre de la LLC *</label>
+                  <label className="form-label">Nombre LLC</label>
                   <input className="form-input" value={form.NombredelaLLC} onChange={e => setForm({...form, NombredelaLLC: e.target.value})} placeholder="GW ... LLC" />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Etapa Actual *</label>
+                  <label className="form-label">Etapa Actual</label>
                   <select className="form-select" value={form.EtapaActual} onChange={e => setForm({...form, EtapaActual: e.target.value})}>
-                    {["Etapa 1: Evaluación","Etapa 2: Negociación","Etapa 3: Due Diligence","Etapa 4: Funding","Etapa 5: Cierre","Etapa 6: Post Closing"].map(e => <option key={e}>{e}</option>)}
+                    {["Negociación","Onboarding","Ventas","Due Diligence","Funding","Financiamiento","Post Closing","Cerrado","Descartado"].map(e => <option key={e}>{e}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Monto Target (USD) *</label>
+                  <label className="form-label">Monto Target (USD)</label>
                   <input className="form-input" type="number" value={form.MontoTarget} onChange={e => setForm({...form, MontoTarget: e.target.value})} placeholder="5000000" />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Monto Levantado (USD)</label>
-                  <input className="form-input" type="number" value={form.MontoLevantado} onChange={e => setForm({...form, MontoLevantado: e.target.value})} placeholder="0" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Fecha LOI</label>
-                  <input className="form-input" type="date" value={form.FechaLOI} onChange={e => setForm({...form, FechaLOI: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Fecha Cierre Estimado</label>
-                  <input className="form-input" type="date" value={form.FechaCierreEstimado} onChange={e => setForm({...form, FechaCierreEstimado: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Estado LLC</label>
-                  <select className="form-select" value={form.EstadoLLC} onChange={e => setForm({...form, EstadoLLC: e.target.value})}>
-                    {["Pendiente","En proceso","Activa","Cerrada"].map(e => <option key={e}>{e}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Estado Cuenta Bancaria</label>
-                  <select className="form-select" value={form.EstadoCuentaBancaria} onChange={e => setForm({...form, EstadoCuentaBancaria: e.target.value})}>
-                    {["Pendiente","En proceso","Activa"].map(e => <option key={e}>{e}</option>)}
-                  </select>
+                  <label className="form-label">Responsable Operativo</label>
+                  <input className="form-input" value={form.ResponsableOperativo} onChange={e => setForm({...form, ResponsableOperativo: e.target.value})} placeholder="Nombre del responsable" />
                 </div>
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.Title || !form.NombredelaLLC || !form.MontoTarget}>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.Title}>
                 {saving ? "Guardando..." : "Crear Proyecto"}
               </button>
             </div>
@@ -1129,16 +1104,21 @@ function ProyectosPage({ siteId }) {
               <div style={{marginBottom:8}}>{getEtapaBadge(selected.fields.EtapaActual)}</div>
               <div className="detail-section-title">Información General</div>
               <div className="detail-grid">
-                <div className="detail-item"><div className="detail-label">Nombre de la LLC</div><div className="detail-value">{selected.fields.NombredelaLLC || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">LLC</div><div className="detail-value">{selected.fields.NombredelaLLC || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Responsable Operativo</div><div className="detail-value">{selected.fields.ResponsableOperativo || "—"}</div></div>
                 <div className="detail-item"><div className="detail-label">Monto Target</div><div className="detail-value" style={{color:'var(--gold)'}}>{fmtMoney(selected.fields.MontoTarget)}</div></div>
                 <div className="detail-item"><div className="detail-label">Monto Levantado</div><div className="detail-value" style={{color:'var(--success)'}}>{fmtMoney(selected.fields.MontoLevantado)}</div></div>
                 <div className="detail-item"><div className="detail-label">Fecha LOI</div><div className="detail-value">{fmtDate(selected.fields.FechaLOI)}</div></div>
-                <div className="detail-item"><div className="detail-label">Fecha Cierre Est.</div><div className="detail-value">{fmtDate(selected.fields.FechaCierreEstimado)}</div></div>
                 <div className="detail-item"><div className="detail-label">Estado LLC</div><div className="detail-value">{selected.fields.EstadoLLC || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Estado Cuenta Bancaria</div><div className="detail-value">{selected.fields.EstadoCuentaBancaria || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Responsable Operativo</div><div className="detail-value">{users[`${siteId}_${selected.fields.ResponsableOperativoLookupId}`] || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Responsable Finanzas</div><div className="detail-value">{users[`${siteId}_${selected.fields.ResponsableFinanzasLookupId}`] || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Responsable Finanzas</div><div className="detail-value">{selected.fields.ResponsableFinanzas || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Fecha Cierre Est.</div><div className="detail-value">{fmtDate(selected.fields.FechaCierreEstimado)}</div></div>
               </div>
+              {selected.fields["DescripciondelActivo"] && (
+                <>
+                  <div className="detail-section-title">Descripción</div>
+                  <p style={{fontSize:13, color:'var(--text-muted)', lineHeight:1.6}}>{selected.fields["DescripciondelActivo"]}</p>
+                </>
+              )}
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setSelected(null)}>Cerrar</button>
@@ -1202,16 +1182,15 @@ function ActivosPage({ siteId }) {
         <table>
           <thead>
             <tr>
-              <th>Nombre Activo</th>
+              <th>Activo</th>
               <th>Tipo</th>
               <th>Ciudad</th>
-              <th>Estado/Provincia</th>
               <th>Precio Oferta</th>
               <th>Cap Rate</th>
-              <th>✓ Location</th>
-              <th>✓ Tenant</th>
-              <th>✓ Tesis</th>
-              <th>Fecha Identificación</th>
+              <th>Location</th>
+              <th>Tenant</th>
+              <th>Tesis</th>
+              <th>Broker</th>
               <th>Estado</th>
             </tr>
           </thead>
@@ -1221,13 +1200,12 @@ function ActivosPage({ siteId }) {
                 <td style={{fontWeight:500}}>{a.fields.Title}</td>
                 <td><span className="badge badge-gray">{a.fields.Tipodeactivo || "—"}</span></td>
                 <td style={{fontSize:12, color:'var(--text-muted)'}}>{a.fields.Ciudad || "—"}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{a.fields["Estado_x002f_Provincia"] || "—"}</td>
                 <td style={{color:'var(--gold)'}}>{fmtMoney(a.fields.PrecioOferta)}</td>
-                <td style={{color:'var(--success)'}}>{a.fields["CapRate_x0028__x0025__x0029_"] ? `${(a.fields["CapRate_x0028__x0025__x0029_"]*100).toFixed(1)}%` : "—"}</td>
+                <td style={{color:'var(--success)'}}>{a.fields["CapRate_x0028__x0025__x0029_"] ? `${a.fields["CapRate_x0028__x0025__x0029_"]}%` : "—"}</td>
                 <td style={{textAlign:'center'}}>{criterioCheck(a.fields.CriterioLocation)}</td>
                 <td style={{textAlign:'center'}}>{criterioCheck(a.fields.CriterioTenant)}</td>
                 <td style={{textAlign:'center'}}>{criterioCheck(a.fields["CriterioTesisdeinversi_x00f3_n"])}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(a.fields["Fechadeidentificaci_x00f3_n"])}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{a.fields.EvaluadorLookupId ? "Asignado" : "—"}</td>
                 <td>{getEtapaBadge(a.fields.Estado)}</td>
               </tr>
             ))}
@@ -1431,34 +1409,20 @@ function HitosPage({ siteId }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("Todos");
   const [users, setUsers] = useState({});
-  const [proyectos, setProyectos] = useState({}); // id -> Title
 
   useEffect(() => {
     async function load() {
       if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
         setItems([
-          { id:1, fields: { Title:"Firma SA Brickell", TipoHito:"Contrato", EstadoAprobaci_x00f3_n:"Aprobado", "NombreProyecto":"Brickell Office Tower", SolicitadoporLookupId:"Sebastián Correa", FechadeSolicitud:"2025-09-20", Observacionesocomentarios:"Firmado por ambas partes" }},
+          { id:1, fields: { Title:"Firma SA Brickell", TipoHito:"Contrato", EstadoAprobaci_x00f3_n:"Aprobado", "NombreProyecto":"Brickell Office Tower", SolicitadoporLookupId:"Sebastián Correa", "AprobadoCompletadopor":"Juan Sebastián", FechadeSolicitud:"2025-09-20" }},
           { id:2, fields: { Title:"Aprobación Brochure Aventura", TipoHito:"Aprobación", EstadoAprobaci_x00f3_n:"Pendiente", "NombreProyecto":"Aventura Retail Plaza", SolicitadoporLookupId:"Pedro García", FechadeSolicitud:"2025-10-05" }},
           { id:3, fields: { Title:"LOI Doral Warehouse", TipoHito:"Legal", EstadoAprobaci_x00f3_n:"Enviado a Aprobación", "NombreProyecto":"Doral Warehouse Complex", SolicitadoporLookupId:"Juan Sebastián", FechadeSolicitud:"2025-10-10" }},
         ]);
         setLoading(false); return;
       }
       try {
-        const [hitosRes, proyRes] = await Promise.all([
-          callGraph(`/sites/${siteId}/lists/712d048d-0d2c-4f1c-a446-64ad65b1c8bd/items?$expand=fields&$top=100`),
-          callGraph(`/sites/${siteId}/lists/f74aa5f4-8b1f-4a7a-9177-f322a3627927/items?$select=id,fields&$expand=fields($select=Title)&$top=100`),
-        ]);
-        const data = hitosRes.value || [];
-        // Build proyecto map: id -> Title
-        const proyMap = {};
-        (proyRes.value || []).forEach(p => { proyMap[p.id] = p.fields.Title; });
-        setProyectos(proyMap);
-        // Inject NombreProyecto into each hito
-        data.forEach(h => {
-          if (h.fields.ProyectoLookupId && proyMap[h.fields.ProyectoLookupId]) {
-            h.fields.NombreProyecto = proyMap[h.fields.ProyectoLookupId];
-          }
-        });
+        const res = await callGraph(`/sites/${siteId}/lists/712d048d-0d2c-4f1c-a446-64ad65b1c8bd/items?$expand=fields&$top=100`);
+        const data = res.value || [];
         setItems(data);
         await resolveUsers(siteId, data, ["SolicitadoporLookupId"]);
         setUsers({...userCache});
@@ -1498,30 +1462,30 @@ function HitosPage({ siteId }) {
         <table>
           <thead>
             <tr>
-              <th>Nombre Hito</th>
+              <th>Hito</th>
               <th>Proyecto</th>
-              <th>Tipo Hito</th>
-              <th>Estado Aprobación</th>
+              <th>Tipo</th>
+              <th>Estado</th>
               <th>Solicitado por</th>
               <th>Aprobado por</th>
               <th>Fecha Solicitud</th>
-              <th>Fecha Resolución</th>
-              <th>Observaciones</th>
+              <th>Documento</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map(h => (
               <tr key={h.id}>
                 <td style={{fontWeight:500}}>{h.fields.Title}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["NombreProyecto"] || `Proyecto #${h.fields.ProyectoLookupId || "—"}`}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["NombreProyecto"] || h.createdBy?.user?.displayName || "—"}</td>
                 <td><span className="badge badge-gray" style={{fontSize:9}}>{h.fields.TipoHito || "—"}</span></td>
                 <td>{getEtapaBadge(h.fields.EstadoAprobaci_x00f3_n)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{users[`${siteId}_${h.fields.SolicitadoporLookupId}`] || "—"}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields.Observacionesocomentarios || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{users[`${siteId}_${h.fields.SolicitadoporLookupId}`] || h.fields.SolicitadoporLookupId || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["AprobadoCompletadopor"] || "—"}</td>
                 <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(h.fields.FechadeSolicitud)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(h.fields["FechadeResoluci_x00f3_n"])}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)', maxWidth:180}}>
-                  {h.fields.Observacionesocomentarios || "—"}
+                <td>
+                  {h.fields.LinkaldocumentoURL
+                    ? <a href={h.fields.LinkaldocumentoURL} target="_blank" style={{color:'var(--gold)', fontSize:12}}>Ver doc ↗</a>
+                    : <span style={{color:'var(--text-dim)', fontSize:12}}>—</span>}
                 </td>
               </tr>
             ))}
