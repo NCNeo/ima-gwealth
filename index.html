@@ -762,18 +762,42 @@
   /* ============================================
      WATERMARK
      ============================================ */
+  /* ============================================
+     WATERMARK - FULL SCREEN
+     ============================================ */
   .watermark {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 120px;
-    opacity: 0.08;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    opacity: 0.04;
     pointer-events: none;
     z-index: 0;
+    overflow: hidden;
   }
   .watermark img {
     width: 100%;
-    height: auto;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  /* ============================================
+     LOGIN WATERMARK BACKGROUND
+     ============================================ */
+  .login-watermark {
+    position: absolute;
+    inset: 0;
+    opacity: 0.15;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .login-watermark img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
   }
 
   /* ============================================
@@ -994,6 +1018,9 @@ function LoginScreen({ onLogin, loading }) {
   return (
     <div className="login-screen">
       <div className="login-bg"></div>
+      <div className="login-watermark">
+        <img src="https://www.g-wealth.com/wp-content/uploads/2025/07/imagen-de-fondo-de-track.webp" alt="GWealth Background" />
+      </div>
       <div className="login-blob login-blob-1"></div>
       <div className="login-blob login-blob-2"></div>
       <div className="login-card">
@@ -1384,6 +1411,21 @@ function ActivosPage({ siteId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ 
+    Title:"", 
+    Tipodeactivo:"Oficinas", 
+    Estado:"En Evaluación", 
+    Ciudad:"", 
+    Estado_x002f_Provincia:"Florida", 
+    PrecioOferta:"", 
+    "CapRate_x0028__x0025__x0029_":"", 
+    CriterioLocation:"Pendiente", 
+    CriterioTenant:"Pendiente", 
+    "CriterioTesisdeinversi_x00f3_n":"Pendiente", 
+    BrokerReferente:"" 
+  });
 
   useEffect(() => {
     async function load() {
@@ -1414,12 +1456,41 @@ function ActivosPage({ siteId }) {
     ? <span style={{color:'var(--gw-warning)'}}>⏳</span>
     : <span style={{color:'var(--gw-muted)'}}>—</span>;
 
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (siteId && siteId !== "PENDIENTE_CONFIGURAR") {
+        await postGraph(`/sites/${siteId}/lists/d8ed32a6-93ee-4c9c-a5d2-14e59bc9c7c0/items`, { fields: form });
+        const res = await callGraph(`/sites/${siteId}/lists/d8ed32a6-93ee-4c9c-a5d2-14e59bc9c7c0/items?$expand=fields&$top=100`);
+        setItems(res.value || []);
+      } else {
+        setItems(prev => [...prev, { id: Date.now(), fields: { ...form } }]);
+      }
+      setShowModal(false);
+      setForm({ 
+        Title:"", 
+        Tipodeactivo:"Oficinas", 
+        Estado:"En Evaluación", 
+        Ciudad:"", 
+        Estado_x002f_Provincia:"Florida", 
+        PrecioOferta:"", 
+        "CapRate_x0028__x0025__x0029_":"", 
+        CriterioLocation:"Pendiente", 
+        CriterioTenant:"Pendiente", 
+        "CriterioTesisdeinversi_x00f3_n":"Pendiente", 
+        BrokerReferente:"" 
+      });
+    } catch(e) { alert("Error al guardar: " + e.message); }
+    finally { setSaving(false); }
+  }
+
   if (loading) return <Loading />;
 
   return (
     <div className="page">
       <div className="section-header">
         <div className="section-title">Activos <span>Inmobiliarios</span></div>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Nuevo Activo</button>
       </div>
       <div className="table-wrap">
         <div className="table-toolbar">
@@ -1459,6 +1530,82 @@ function ActivosPage({ siteId }) {
           </tbody>
         </table>
       </div>
+
+      {/* MODAL NUEVO ACTIVO */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Nuevo Activo Inmobiliario</div>
+              <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group full">
+                  <label className="form-label">Nombre del Activo *</label>
+                  <input className="form-input" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} placeholder="Ej: Tower 1851 Brickell" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Tipo de Activo *</label>
+                  <select className="form-select" value={form.Tipodeactivo} onChange={e => setForm({...form, Tipodeactivo: e.target.value})}>
+                    {["Oficinas","Retail","Bodega","Multifamily","Hotel","Industrial","Terreno","Mixto"].map(e => <option key={e}>{e}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Estado *</label>
+                  <select className="form-select" value={form.Estado} onChange={e => setForm({...form, Estado: e.target.value})}>
+                    {["Activo","En Evaluación","En Negociación","Descartado"].map(e => <option key={e}>{e}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Ciudad *</label>
+                  <input className="form-input" value={form.Ciudad} onChange={e => setForm({...form, Ciudad: e.target.value})} placeholder="Ej: Miami" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Estado/Provincia *</label>
+                  <input className="form-input" value={form.Estado_x002f_Provincia} onChange={e => setForm({...form, Estado_x002f_Provincia: e.target.value})} placeholder="Ej: Florida" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Precio de Oferta (USD) *</label>
+                  <input className="form-input" type="number" value={form.PrecioOferta} onChange={e => setForm({...form, PrecioOferta: e.target.value})} placeholder="5000000" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Cap Rate (%)</label>
+                  <input className="form-input" type="number" step="0.1" value={form["CapRate_x0028__x0025__x0029_"]} onChange={e => setForm({...form, "CapRate_x0028__x0025__x0029_": e.target.value})} placeholder="5.5" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Broker Referente</label>
+                  <input className="form-input" value={form.BrokerReferente} onChange={e => setForm({...form, BrokerReferente: e.target.value})} placeholder="Ej: CBRE" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Criterio Location</label>
+                  <select className="form-select" value={form.CriterioLocation} onChange={e => setForm({...form, CriterioLocation: e.target.value})}>
+                    {["Sí","No","Pendiente"].map(e => <option key={e}>{e}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Criterio Tenant</label>
+                  <select className="form-select" value={form.CriterioTenant} onChange={e => setForm({...form, CriterioTenant: e.target.value})}>
+                    {["Sí","No","Pendiente"].map(e => <option key={e}>{e}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Criterio Tesis</label>
+                  <select className="form-select" value={form["CriterioTesisdeinversi_x00f3_n"]} onChange={e => setForm({...form, "CriterioTesisdeinversi_x00f3_n": e.target.value})}>
+                    {["Sí","No","Pendiente"].map(e => <option key={e}>{e}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.Title || !form.Ciudad || !form.PrecioOferta}>
+                {saving ? "Guardando..." : "Crear Activo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1470,6 +1617,17 @@ function InversionistasPage({ siteId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ 
+    Title:"", 
+    Correoelectronico:"", 
+    Tel_x00e9_fono:"", 
+    Ciudad:"", 
+    Estado_x002f_Provincia:"Florida", 
+    MontoTotalInvertido:"", 
+    EstadoKYC:"Pendiente" 
+  });
 
   useEffect(() => {
     async function load() {
@@ -1495,12 +1653,37 @@ function InversionistasPage({ siteId }) {
     i.fields.Correoelectronico?.toLowerCase().includes(search.toLowerCase())
   );
 
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (siteId && siteId !== "PENDIENTE_CONFIGURAR") {
+        await postGraph(`/sites/${siteId}/lists/374ee808-c667-4145-a9fd-57ba58eaf33e/items`, { fields: form });
+        const res = await callGraph(`/sites/${siteId}/lists/374ee808-c667-4145-a9fd-57ba58eaf33e/items?$expand=fields&$top=100`);
+        setItems(res.value || []);
+      } else {
+        setItems(prev => [...prev, { id: Date.now(), fields: { ...form } }]);
+      }
+      setShowModal(false);
+      setForm({ 
+        Title:"", 
+        Correoelectronico:"", 
+        Tel_x00e9_fono:"", 
+        Ciudad:"", 
+        Estado_x002f_Provincia:"Florida", 
+        MontoTotalInvertido:"", 
+        EstadoKYC:"Pendiente" 
+      });
+    } catch(e) { alert("Error al guardar: " + e.message); }
+    finally { setSaving(false); }
+  }
+
   if (loading) return <Loading />;
 
   return (
     <div className="page">
       <div className="section-header">
         <div className="section-title">Inversionistas <span>Registrados</span></div>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Nuevo Inversionista</button>
       </div>
       <div className="table-wrap">
         <div className="table-toolbar">
@@ -1532,6 +1715,58 @@ function InversionistasPage({ siteId }) {
           </tbody>
         </table>
       </div>
+
+      {/* MODAL NUEVO INVERSIONISTA */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Nuevo Inversionista</div>
+              <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-grid">
+                <div className="form-group full">
+                  <label className="form-label">Nombre Completo *</label>
+                  <input className="form-input" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} placeholder="Ej: Carlos Martinez" required />
+                </div>
+                <div className="form-group full">
+                  <label className="form-label">Correo Electrónico *</label>
+                  <input className="form-input" type="email" value={form.Correoelectronico} onChange={e => setForm({...form, Correoelectronico: e.target.value})} placeholder="ejemplo@email.com" required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Teléfono</label>
+                  <input className="form-input" value={form.Tel_x00e9_fono} onChange={e => setForm({...form, Tel_x00e9_fono: e.target.value})} placeholder="+1 305 555 0101" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Ciudad *</label>
+                  <input className="form-input" value={form.Ciudad} onChange={e => setForm({...form, Ciudad: e.target.value})} placeholder="Ej: Miami" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Estado/Provincia *</label>
+                  <input className="form-input" value={form.Estado_x002f_Provincia} onChange={e => setForm({...form, Estado_x002f_Provincia: e.target.value})} placeholder="Ej: Florida" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Monto Total Invertido (USD)</label>
+                  <input className="form-input" type="number" value={form.MontoTotalInvertido} onChange={e => setForm({...form, MontoTotalInvertido: e.target.value})} placeholder="500000" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Estado KYC *</label>
+                  <select className="form-select" value={form.EstadoKYC} onChange={e => setForm({...form, EstadoKYC: e.target.value})}>
+                    {["Pendiente","En Revisión","Aprobado","Rechazado"].map(e => <option key={e}>{e}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.Title || !form.Correoelectronico || !form.Ciudad}>
+                {saving ? "Guardando..." : "Crear Inversionista"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
