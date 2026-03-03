@@ -679,6 +679,24 @@ function getEtapaBadge(etapa) {
     "Post Closing": { cls: "badge-green", label: "Post Closing" },
     "Cerrado": { cls: "badge-green", label: "Cerrado" },
     "Descartado": { cls: "badge-red", label: "Descartado" },
+    // SharePoint real values
+    "Etapa 1: Evaluación": { cls: "badge-orange", label: "Evaluación" },
+    "Etapa 2: Negociación": { cls: "badge-orange", label: "Negociación" },
+    "Etapa 3: Due Diligence": { cls: "badge-orange", label: "Due Diligence" },
+    "Etapa 4: Funding": { cls: "badge-blue", label: "Funding" },
+    "Etapa 5: Cierre": { cls: "badge-gold", label: "Cierre" },
+    "Etapa 6: Post Closing": { cls: "badge-green", label: "Post Closing" },
+    // KYC
+    "Enviado a Aprobación": { cls: "badge-blue", label: "En Revisión" },
+    "Aprobado": { cls: "badge-green", label: "Aprobado" },
+    "Pendiente": { cls: "badge-orange", label: "Pendiente" },
+    "Pendiente de Generación": { cls: "badge-orange", label: "Pendiente" },
+    "En Revisión": { cls: "badge-blue", label: "En Revisión" },
+    "Rechazado": { cls: "badge-red", label: "Rechazado" },
+    // Estados
+    "Activo": { cls: "badge-green", label: "Activo" },
+    "En Evaluación": { cls: "badge-orange", label: "En Evaluación" },
+    "En proceso": { cls: "badge-blue", label: "En proceso" },
   };
   const b = map[etapa] || { cls: "badge-gray", label: etapa || "—" };
   return <span className={`badge ${b.cls}`}><span className="badge-dot"></span>{b.label}</span>;
@@ -778,15 +796,15 @@ function Dashboard({ siteInv, siteProy }) {
         // Fallback a datos demo
         setData({
           proyectos: [
-            { id:1, fields: { Title:"Brickell Office Tower", Etapa_x0020_Actual:"Funding", Monto_x0020_Target:"8500000", Monto_x0020_Levantado:"6200000", Nombre_x0020_de_x0020_la_x0020_L:"GW Brickell LLC", Responsable_x0020_Operativo:"Sebastián Correa" }},
-            { id:2, fields: { Title:"Aventura Retail Plaza", Etapa_x0020_Actual:"Ventas", Monto_x0020_Target:"12000000", Monto_x0020_Levantado:"3400000", Nombre_x0020_de_x0020_la_x0020_L:"GW Aventura LLC", Responsable_x0020_Operativo:"Pedro García" }},
-            { id:3, fields: { Title:"Doral Warehouse Complex", Etapa_x0020_Actual:"Due Diligence", Monto_x0020_Target:"5500000", Monto_x0020_Levantado:"5500000", Nombre_x0020_de_x0020_la_x0020_L:"GW Doral LLC", Responsable_x0020_Operativo:"Juan Sebastián" }},
-            { id:4, fields: { Title:"Coral Gables Office", Etapa_x0020_Actual:"Post Closing", Monto_x0020_Target:"9000000", Monto_x0020_Levantado:"9000000", Nombre_x0020_de_x0020_la_x0020_L:"GW Coral LLC", Responsable_x0020_Operativo:"Sebastián Correa" }},
+            { id:1, fields: { Title:"Brickell Office Tower", EtapaActual:"Funding", MontoTarget:"8500000", MontoLevantado:"6200000", NombredelaLLC:"GW Brickell LLC", ResponsableOperativo:"Sebastián Correa" }},
+            { id:2, fields: { Title:"Aventura Retail Plaza", EtapaActual:"Ventas", MontoTarget:"12000000", MontoLevantado:"3400000", NombredelaLLC:"GW Aventura LLC", ResponsableOperativo:"Pedro García" }},
+            { id:3, fields: { Title:"Doral Warehouse Complex", EtapaActual:"Due Diligence", MontoTarget:"5500000", MontoLevantado:"5500000", NombredelaLLC:"GW Doral LLC", ResponsableOperativo:"Juan Sebastián" }},
+            { id:4, fields: { Title:"Coral Gables Office", EtapaActual:"Post Closing", MontoTarget:"9000000", MontoLevantado:"9000000", NombredelaLLC:"GW Coral LLC", ResponsableOperativo:"Sebastián Correa" }},
           ],
           activos: [], inversionistas: [], inversiones: [],
           hitos: [
-            { id:1, fields: { Title:"Firma SA Brickell", Tipo_x0020_Hito:"Contrato", Estado_x0020_Aprobacion:"Aprobado", Proyecto_x0020__x003A__x0020_Tit:"Brickell Office Tower" }},
-            { id:2, fields: { Title:"Brochure Aventura", Tipo_x0020_Hito:"Aprobación", Estado_x0020_Aprobacion:"Pendiente", Proyecto_x0020__x003A__x0020_Tit:"Aventura Retail Plaza" }},
+            { id:1, fields: { Title:"Firma SA Brickell", TipoHito:"Contrato", EstadoAprobaci_x00f3_n:"Aprobado", NombreProyecto:"Brickell Office Tower" }},
+            { id:2, fields: { Title:"Brochure Aventura", TipoHito:"Aprobación", EstadoAprobaci_x00f3_n:"Pendiente", NombreProyecto:"Aventura Retail Plaza" }},
           ]
         });
       }
@@ -797,10 +815,10 @@ function Dashboard({ siteInv, siteProy }) {
 
   if (loading) return <Loading text="Cargando plataforma..." />;
 
-  const totalTarget = data.proyectos.reduce((s, p) => s + parseFloat(p.fields.Monto_x0020_Target || 0), 0);
-  const totalLevantado = data.proyectos.reduce((s, p) => s + parseFloat(p.fields.Monto_x0020_Levantado || 0), 0);
+  const totalTarget = data.proyectos.reduce((s, p) => s + parseFloat(p.fields.MontoTarget || 0), 0);
+  const totalLevantado = data.proyectos.reduce((s, p) => s + parseFloat(p.fields.MontoLevantado || 0), 0);
   const pctFunded = totalTarget > 0 ? Math.round((totalLevantado / totalTarget) * 100) : 0;
-  const pendientes = data.hitos.filter(h => h.fields.Estado_x0020_Aprobacion === "Pendiente").length;
+  const pendientes = data.hitos.filter(h => h.fields.EstadoAprobaci_x00f3_n === "Pendiente").length;
 
   return (
     <div className="page">
@@ -853,11 +871,11 @@ function Dashboard({ siteInv, siteProy }) {
             {data.proyectos.map(p => (
               <tr key={p.id}>
                 <td style={{fontWeight:500}}>{p.fields.Title}</td>
-                <td style={{color:'var(--text-muted)', fontSize:12}}>{p.fields.Nombre_x0020_de_x0020_la_x0020_L || "—"}</td>
-                <td>{getEtapaBadge(p.fields.Etapa_x0020_Actual)}</td>
-                <td>{fmtMoney(p.fields.Monto_x0020_Target)}</td>
-                <td style={{color:'var(--success)'}}>{fmtMoney(p.fields.Monto_x0020_Levantado)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.Responsable_x0020_Operativo || "—"}</td>
+                <td style={{color:'var(--text-muted)', fontSize:12}}>{p.fields.NombredelaLLC || "—"}</td>
+                <td>{getEtapaBadge(p.fields.EtapaActual)}</td>
+                <td>{fmtMoney(p.fields.MontoTarget)}</td>
+                <td style={{color:'var(--success)'}}>{fmtMoney(p.fields.MontoLevantado)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.ResponsableOperativo || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -883,10 +901,10 @@ function Dashboard({ siteInv, siteProy }) {
             {data.hitos.map(h => (
               <tr key={h.id}>
                 <td style={{fontWeight:500}}>{h.fields.Title}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["Proyecto_x0020__x003A__x0020_Tit"] || h.fields.Proyecto || "—"}</td>
-                <td style={{fontSize:12}}>{h.fields.Tipo_x0020_Hito || "—"}</td>
-                <td>{getEtapaBadge(h.fields.Estado_x0020_Aprobacion)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["Aprobado_x002F__x0020_Completado_x0020_por"] || h.fields.Solicitado_x0020_por || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["NombreProyecto"] || h.fields.Proyecto || "—"}</td>
+                <td style={{fontSize:12}}>{h.fields.TipoHito || "—"}</td>
+                <td>{getEtapaBadge(h.fields.EstadoAprobaci_x00f3_n)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["AprobadoCompletadopor"] || h.fields.SolicitadoporLookupId || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -907,16 +925,16 @@ function ProyectosPage({ siteId }) {
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ Title:"", Etapa_x0020_Actual:"Negociación", Monto_x0020_Target:"", Nombre_x0020_de_x0020_la_x0020_L:"", Responsable_x0020_Operativo:"" });
+  const [form, setForm] = useState({ Title:"", EtapaActual:"Negociación", MontoTarget:"", NombredelaLLC:"", ResponsableOperativo:"" });
 
   useEffect(() => {
     async function load() {
       if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
         setItems([
-          { id:1, fields: { Title:"Brickell Office Tower", Etapa_x0020_Actual:"Funding", Monto_x0020_Target:"8500000", Monto_x0020_Levantado:"6200000", Nombre_x0020_de_x0020_la_x0020_L:"GW Brickell LLC", Responsable_x0020_Operativo:"Sebastián Correa", Fecha_x0020_LOI:"2025-09-15", Descripcion_x0020_del_x0020_Activ:"Edificio de oficinas clase A en el corazón de Brickell, Miami." }},
-          { id:2, fields: { Title:"Aventura Retail Plaza", Etapa_x0020_Actual:"Ventas", Monto_x0020_Target:"12000000", Monto_x0020_Levantado:"3400000", Nombre_x0020_de_x0020_la_x0020_L:"GW Aventura LLC", Responsable_x0020_Operativo:"Pedro García", Fecha_x0020_LOI:"2025-10-01" }},
-          { id:3, fields: { Title:"Doral Warehouse Complex", Etapa_x0020_Actual:"Due Diligence", Monto_x0020_Target:"5500000", Monto_x0020_Levantado:"5500000", Nombre_x0020_de_x0020_la_x0020_L:"GW Doral LLC", Responsable_x0020_Operativo:"Juan Sebastián", Fecha_x0020_LOI:"2025-08-20" }},
-          { id:4, fields: { Title:"Coral Gables Office", Etapa_x0020_Actual:"Post Closing", Monto_x0020_Target:"9000000", Monto_x0020_Levantado:"9000000", Nombre_x0020_de_x0020_la_x0020_L:"GW Coral LLC", Responsable_x0020_Operativo:"Sebastián Correa", Fecha_x0020_LOI:"2025-07-10" }},
+          { id:1, fields: { Title:"Brickell Office Tower", EtapaActual:"Funding", MontoTarget:"8500000", MontoLevantado:"6200000", NombredelaLLC:"GW Brickell LLC", ResponsableOperativo:"Sebastián Correa", FechaLOI:"2025-09-15", DescripciondelActivo:"Edificio de oficinas clase A en el corazón de Brickell, Miami." }},
+          { id:2, fields: { Title:"Aventura Retail Plaza", EtapaActual:"Ventas", MontoTarget:"12000000", MontoLevantado:"3400000", NombredelaLLC:"GW Aventura LLC", ResponsableOperativo:"Pedro García", FechaLOI:"2025-10-01" }},
+          { id:3, fields: { Title:"Doral Warehouse Complex", EtapaActual:"Due Diligence", MontoTarget:"5500000", MontoLevantado:"5500000", NombredelaLLC:"GW Doral LLC", ResponsableOperativo:"Juan Sebastián", FechaLOI:"2025-08-20" }},
+          { id:4, fields: { Title:"Coral Gables Office", EtapaActual:"Post Closing", MontoTarget:"9000000", MontoLevantado:"9000000", NombredelaLLC:"GW Coral LLC", ResponsableOperativo:"Sebastián Correa", FechaLOI:"2025-07-10" }},
         ]);
         setLoading(false); return;
       }
@@ -942,7 +960,7 @@ function ProyectosPage({ siteId }) {
         setItems(prev => [...prev, { id: Date.now(), fields: { ...form } }]);
       }
       setShowModal(false);
-      setForm({ Title:"", Etapa_x0020_Actual:"Negociación", Monto_x0020_Target:"", Nombre_x0020_de_x0020_la_x0020_L:"", Responsable_x0020_Operativo:"" });
+      setForm({ Title:"", EtapaActual:"Negociación", MontoTarget:"", NombredelaLLC:"", ResponsableOperativo:"" });
     } catch(e) { alert("Error al guardar: " + e.message); }
     finally { setSaving(false); }
   }
@@ -982,12 +1000,12 @@ function ProyectosPage({ siteId }) {
             {filtered.map(p => (
               <tr key={p.id}>
                 <td style={{fontWeight:500}}>{p.fields.Title}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.Nombre_x0020_de_x0020_la_x0020_L || "—"}</td>
-                <td>{getEtapaBadge(p.fields.Etapa_x0020_Actual)}</td>
-                <td>{fmtMoney(p.fields.Monto_x0020_Target)}</td>
-                <td style={{color:'var(--success)'}}>{fmtMoney(p.fields.Monto_x0020_Levantado)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(p.fields.Fecha_x0020_LOI)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.Responsable_x0020_Operativo || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.NombredelaLLC || "—"}</td>
+                <td>{getEtapaBadge(p.fields.EtapaActual)}</td>
+                <td>{fmtMoney(p.fields.MontoTarget)}</td>
+                <td style={{color:'var(--success)'}}>{fmtMoney(p.fields.MontoLevantado)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(p.fields.FechaLOI)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.ResponsableOperativo || "—"}</td>
                 <td><button className="btn btn-ghost btn-sm" onClick={() => setSelected(p)}>Ver</button></td>
               </tr>
             ))}
@@ -1011,21 +1029,21 @@ function ProyectosPage({ siteId }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Nombre LLC</label>
-                  <input className="form-input" value={form.Nombre_x0020_de_x0020_la_x0020_L} onChange={e => setForm({...form, Nombre_x0020_de_x0020_la_x0020_L: e.target.value})} placeholder="GW ... LLC" />
+                  <input className="form-input" value={form.NombredelaLLC} onChange={e => setForm({...form, NombredelaLLC: e.target.value})} placeholder="GW ... LLC" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Etapa Actual</label>
-                  <select className="form-select" value={form.Etapa_x0020_Actual} onChange={e => setForm({...form, Etapa_x0020_Actual: e.target.value})}>
+                  <select className="form-select" value={form.EtapaActual} onChange={e => setForm({...form, EtapaActual: e.target.value})}>
                     {["Negociación","Onboarding","Ventas","Due Diligence","Funding","Financiamiento","Post Closing","Cerrado","Descartado"].map(e => <option key={e}>{e}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Monto Target (USD)</label>
-                  <input className="form-input" type="number" value={form.Monto_x0020_Target} onChange={e => setForm({...form, Monto_x0020_Target: e.target.value})} placeholder="5000000" />
+                  <input className="form-input" type="number" value={form.MontoTarget} onChange={e => setForm({...form, MontoTarget: e.target.value})} placeholder="5000000" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Responsable Operativo</label>
-                  <input className="form-input" value={form.Responsable_x0020_Operativo} onChange={e => setForm({...form, Responsable_x0020_Operativo: e.target.value})} placeholder="Nombre del responsable" />
+                  <input className="form-input" value={form.ResponsableOperativo} onChange={e => setForm({...form, ResponsableOperativo: e.target.value})} placeholder="Nombre del responsable" />
                 </div>
               </div>
             </div>
@@ -1048,22 +1066,22 @@ function ProyectosPage({ siteId }) {
               <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
             </div>
             <div className="modal-body">
-              <div style={{marginBottom:8}}>{getEtapaBadge(selected.fields.Etapa_x0020_Actual)}</div>
+              <div style={{marginBottom:8}}>{getEtapaBadge(selected.fields.EtapaActual)}</div>
               <div className="detail-section-title">Información General</div>
               <div className="detail-grid">
-                <div className="detail-item"><div className="detail-label">LLC</div><div className="detail-value">{selected.fields.Nombre_x0020_de_x0020_la_x0020_L || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Responsable Operativo</div><div className="detail-value">{selected.fields.Responsable_x0020_Operativo || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Monto Target</div><div className="detail-value" style={{color:'var(--gold)'}}>{fmtMoney(selected.fields.Monto_x0020_Target)}</div></div>
-                <div className="detail-item"><div className="detail-label">Monto Levantado</div><div className="detail-value" style={{color:'var(--success)'}}>{fmtMoney(selected.fields.Monto_x0020_Levantado)}</div></div>
-                <div className="detail-item"><div className="detail-label">Fecha LOI</div><div className="detail-value">{fmtDate(selected.fields.Fecha_x0020_LOI)}</div></div>
-                <div className="detail-item"><div className="detail-label">Estado LLC</div><div className="detail-value">{selected.fields.Estado_x0020_LLC || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Responsable Finanzas</div><div className="detail-value">{selected.fields.Responsable_x0020_Finanzas || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Fecha Cierre Est.</div><div className="detail-value">{fmtDate(selected.fields.Fecha_x0020_Cierre_x0020_Estimado)}</div></div>
+                <div className="detail-item"><div className="detail-label">LLC</div><div className="detail-value">{selected.fields.NombredelaLLC || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Responsable Operativo</div><div className="detail-value">{selected.fields.ResponsableOperativo || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Monto Target</div><div className="detail-value" style={{color:'var(--gold)'}}>{fmtMoney(selected.fields.MontoTarget)}</div></div>
+                <div className="detail-item"><div className="detail-label">Monto Levantado</div><div className="detail-value" style={{color:'var(--success)'}}>{fmtMoney(selected.fields.MontoLevantado)}</div></div>
+                <div className="detail-item"><div className="detail-label">Fecha LOI</div><div className="detail-value">{fmtDate(selected.fields.FechaLOI)}</div></div>
+                <div className="detail-item"><div className="detail-label">Estado LLC</div><div className="detail-value">{selected.fields.EstadoLLC || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Responsable Finanzas</div><div className="detail-value">{selected.fields.ResponsableFinanzas || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Fecha Cierre Est.</div><div className="detail-value">{fmtDate(selected.fields.FechaCierreEstimado)}</div></div>
               </div>
-              {selected.fields["Descripcion_x0020_del_x0020_Activ"] && (
+              {selected.fields["DescripciondelActivo"] && (
                 <>
                   <div className="detail-section-title">Descripción</div>
-                  <p style={{fontSize:13, color:'var(--text-muted)', lineHeight:1.6}}>{selected.fields["Descripcion_x0020_del_x0020_Activ"]}</p>
+                  <p style={{fontSize:13, color:'var(--text-muted)', lineHeight:1.6}}>{selected.fields["DescripciondelActivo"]}</p>
                 </>
               )}
             </div>
@@ -1089,9 +1107,9 @@ function ActivosPage({ siteId }) {
     async function load() {
       if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
         setItems([
-          { id:1, fields: { Title:"Tower 1851 Brickell", Tipo_x0020_de_x0020_activo:"Oficinas", Estado:"Activo", Ciudad:"Miami", Estado__x002F__x0020_Provincia:"Florida", Precio_x0020_Oferta:"8200000", "Cap_x0020_Rate_x0020___x0025_":"5.8", Criterio_x0020_Location:"Sí", Criterio_x0020_Tenant:"Sí", "Criterio_x0020_Tesis_x0020_de_x0020_inversion":"Sí", Broker_x0020_Referente:"Marcus & Millichap" }},
-          { id:2, fields: { Title:"Aventura Mall Strip", Tipo_x0020_de_x0020_activo:"Retail", Estado:"En Evaluación", Ciudad:"Aventura", Estado__x002F__x0020_Provincia:"Florida", Precio_x0020_Oferta:"11500000", "Cap_x0020_Rate_x0020___x0025_":"6.2", Criterio_x0020_Location:"Sí", Criterio_x0020_Tenant:"Pendiente", "Criterio_x0020_Tesis_x0020_de_x0020_inversion":"Sí", Broker_x0020_Referente:"CBRE" }},
-          { id:3, fields: { Title:"Doral Industrial Park", Tipo_x0020_de_x0020_activo:"Bodega", Estado:"Activo", Ciudad:"Doral", Estado__x002F__x0020_Provincia:"Florida", Precio_x0020_Oferta:"5200000", "Cap_x0020_Rate_x0020___x0025_":"7.1", Criterio_x0020_Location:"Sí", Criterio_x0020_Tenant:"Sí", "Criterio_x0020_Tesis_x0020_de_x0020_inversion":"Sí", Broker_x0020_Referente:"JLL" }},
+          { id:1, fields: { Title:"Tower 1851 Brickell", Tipodeactivo:"Oficinas", Estado:"Activo", Ciudad:"Miami", Estado_x002f_Provincia:"Florida", PrecioOferta:"8200000", "CapRate_x0028__x0025__x0029_":"5.8", CriterioLocation:"Sí", CriterioTenant:"Sí", "CriterioTesisdeinversi_x00f3_n":"Sí", BrokerReferente:"Marcus & Millichap" }},
+          { id:2, fields: { Title:"Aventura Mall Strip", Tipodeactivo:"Retail", Estado:"En Evaluación", Ciudad:"Aventura", Estado_x002f_Provincia:"Florida", PrecioOferta:"11500000", "CapRate_x0028__x0025__x0029_":"6.2", CriterioLocation:"Sí", CriterioTenant:"Pendiente", "CriterioTesisdeinversi_x00f3_n":"Sí", BrokerReferente:"CBRE" }},
+          { id:3, fields: { Title:"Doral Industrial Park", Tipodeactivo:"Bodega", Estado:"Activo", Ciudad:"Doral", Estado_x002f_Provincia:"Florida", PrecioOferta:"5200000", "CapRate_x0028__x0025__x0029_":"7.1", CriterioLocation:"Sí", CriterioTenant:"Sí", "CriterioTesisdeinversi_x00f3_n":"Sí", BrokerReferente:"JLL" }},
         ]);
         setLoading(false); return;
       }
@@ -1143,14 +1161,14 @@ function ActivosPage({ siteId }) {
             {filtered.map(a => (
               <tr key={a.id}>
                 <td style={{fontWeight:500}}>{a.fields.Title}</td>
-                <td><span className="badge badge-gray">{a.fields.Tipo_x0020_de_x0020_activo || "—"}</span></td>
+                <td><span className="badge badge-gray">{a.fields.Tipodeactivo || "—"}</span></td>
                 <td style={{fontSize:12, color:'var(--text-muted)'}}>{a.fields.Ciudad || "—"}</td>
-                <td style={{color:'var(--gold)'}}>{fmtMoney(a.fields.Precio_x0020_Oferta)}</td>
-                <td style={{color:'var(--success)'}}>{a.fields["Cap_x0020_Rate_x0020___x0025_"] ? `${a.fields["Cap_x0020_Rate_x0020___x0025_"]}%` : "—"}</td>
-                <td style={{textAlign:'center'}}>{criterioCheck(a.fields.Criterio_x0020_Location)}</td>
-                <td style={{textAlign:'center'}}>{criterioCheck(a.fields.Criterio_x0020_Tenant)}</td>
-                <td style={{textAlign:'center'}}>{criterioCheck(a.fields["Criterio_x0020_Tesis_x0020_de_x0020_inversion"])}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{a.fields.Broker_x0020_Referente || "—"}</td>
+                <td style={{color:'var(--gold)'}}>{fmtMoney(a.fields.PrecioOferta)}</td>
+                <td style={{color:'var(--success)'}}>{a.fields["CapRate_x0028__x0025__x0029_"] ? `${a.fields["CapRate_x0028__x0025__x0029_"]}%` : "—"}</td>
+                <td style={{textAlign:'center'}}>{criterioCheck(a.fields.CriterioLocation)}</td>
+                <td style={{textAlign:'center'}}>{criterioCheck(a.fields.CriterioTenant)}</td>
+                <td style={{textAlign:'center'}}>{criterioCheck(a.fields["CriterioTesisdeinversi_x00f3_n"])}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{a.fields.BrokerReferente || "—"}</td>
                 <td>{getEtapaBadge(a.fields.Estado)}</td>
               </tr>
             ))}
@@ -1171,15 +1189,15 @@ function InversionistasPage({ siteId }) {
   const [selected, setSelected] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ Title:"", Tipo_x0020_de_x0020_Inversionista:"Persona Natural", Email:"", "Telefono_x0020___x002F__x0020_Wh":"", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Pendiente", Gestor_x0020_de_x0020_cuenta:"" });
+  const [form, setForm] = useState({ Title:"", field_1:"Persona Natural", field_2:"", "field_3":"", field_10:"Pendiente", GestordeCuenta:"" });
 
   useEffect(() => {
     async function load() {
       if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
         setItems([
-          { id:1, fields: { Title:"Carlos Mendoza", Tipo_x0020_de_x0020_Inversionista:"Persona Natural", Email:"cmendoza@email.com", "Telefono_x0020___x002F__x0020_Wh":"+1 305 555 0101", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Aprobado", Gestor_x0020_de_x0020_cuenta:"Camila Osorio", City:"Miami", Country:"USA", Inversionista_x0020_Nuevo:"No" }},
-          { id:2, fields: { Title:"Inversiones Omega S.A.", Tipo_x0020_de_x0020_Inversionista:"Persona Jurídica", Email:"info@omega.com", "Telefono_x0020___x002F__x0020_Wh":"+1 786 555 0202", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Pendiente", Gestor_x0020_de_x0020_cuenta:"Camila Osorio", City:"Bogotá", Country:"Colombia", Inversionista_x0020_Nuevo:"Sí" }},
-          { id:3, fields: { Title:"Roberto Jiménez", Tipo_x0020_de_x0020_Inversionista:"Persona Natural", Email:"rjimenez@email.com", "Telefono_x0020___x002F__x0020_Wh":"+57 300 555 0303", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Aprobado", Gestor_x0020_de_x0020_cuenta:"Pedro García", City:"Medellín", Country:"Colombia", Inversionista_x0020_Nuevo:"No" }},
+          { id:1, fields: { Title:"Carlos Mendoza", field_1:"Persona Natural", field_2:"cmendoza@email.com", "field_3":"+1 305 555 0101", field_10:"Aprobado", GestordeCuenta:"Camila Osorio", field_5:"Miami", field_7:"USA", InversionistaNuevo:"No" }},
+          { id:2, fields: { Title:"Inversiones Omega S.A.", field_1:"Persona Jurídica", field_2:"info@omega.com", "field_3":"+1 786 555 0202", field_10:"Pendiente", GestordeCuenta:"Camila Osorio", field_5:"Bogotá", field_7:"Colombia", InversionistaNuevo:"Sí" }},
+          { id:3, fields: { Title:"Roberto Jiménez", field_1:"Persona Natural", field_2:"rjimenez@email.com", "field_3":"+57 300 555 0303", field_10:"Aprobado", GestordeCuenta:"Pedro García", field_5:"Medellín", field_7:"Colombia", InversionistaNuevo:"No" }},
         ]);
         setLoading(false); return;
       }
@@ -1240,13 +1258,13 @@ function InversionistasPage({ siteId }) {
             {filtered.map(inv => (
               <tr key={inv.id}>
                 <td style={{fontWeight:500}}>{inv.fields.Title}</td>
-                <td><span className="badge badge-gray" style={{fontSize:9}}>{inv.fields.Tipo_x0020_de_x0020_Inversionista || "—"}</span></td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields.Email || "—"}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields["Telefono_x0020___x002F__x0020_Wh"] || "—"}</td>
-                <td>{getEtapaBadge(inv.fields.Estado_x0020_KYC_x0020___x002F___x0020_DD)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields.City || "—"}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields.Gestor_x0020_de_x0020_cuenta || "—"}</td>
-                <td style={{fontSize:12, textAlign:'center'}}>{inv.fields.Inversionista_x0020_Nuevo === "Sí" ? <span style={{color:'var(--warning)'}}>Nuevo</span> : <span style={{color:'var(--text-dim)'}}>—</span>}</td>
+                <td><span className="badge badge-gray" style={{fontSize:9}}>{inv.fields.field_1 || "—"}</span></td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields.field_2 || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields["field_3"] || "—"}</td>
+                <td>{getEtapaBadge(inv.fields.field_10)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields.field_5 || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{inv.fields.GestordecuentaLookupId ? "Asignado" : "—"}</td>
+                <td style={{fontSize:12, textAlign:'center'}}>{inv.fields.InversionistaNuevo === true ? <span style={{color:'var(--warning)'}}>Nuevo</span> : <span style={{color:'var(--text-dim)'}}>—</span>}</td>
                 <td><button className="btn btn-ghost btn-sm" onClick={() => setSelected(inv)}>Ver</button></td>
               </tr>
             ))}
@@ -1269,14 +1287,14 @@ function InversionistasPage({ siteId }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Tipo de Inversionista</label>
-                  <select className="form-select" value={form.Tipo_x0020_de_x0020_Inversionista} onChange={e => setForm({...form, Tipo_x0020_de_x0020_Inversionista: e.target.value})}>
+                  <select className="form-select" value={form.field_1} onChange={e => setForm({...form, field_1: e.target.value})}>
                     <option>Persona Natural</option>
                     <option>Persona Jurídica</option>
                   </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Estado KYC / DD</label>
-                  <select className="form-select" value={form.Estado_x0020_KYC_x0020___x002F___x0020_DD} onChange={e => setForm({...form, Estado_x0020_KYC_x0020___x002F___x0020_DD: e.target.value})}>
+                  <select className="form-select" value={form.field_10} onChange={e => setForm({...form, field_10: e.target.value})}>
                     <option>Pendiente</option>
                     <option>En Revisión</option>
                     <option>Aprobado</option>
@@ -1284,16 +1302,16 @@ function InversionistasPage({ siteId }) {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Email</label>
-                  <input className="form-input" type="email" value={form.Email} onChange={e => setForm({...form, Email: e.target.value})} />
+                  <label className="form-label">field_2</label>
+                  <input className="form-input" type="email" value={form.field_2} onChange={e => setForm({...form, field_2: e.target.value})} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Teléfono / WhatsApp</label>
-                  <input className="form-input" value={form["Telefono_x0020___x002F__x0020_Wh"]} onChange={e => setForm({...form, "Telefono_x0020___x002F__x0020_Wh": e.target.value})} />
+                  <input className="form-input" value={form["field_3"]} onChange={e => setForm({...form, "field_3": e.target.value})} />
                 </div>
                 <div className="form-group full">
                   <label className="form-label">Gestor de Cuenta</label>
-                  <input className="form-input" value={form.Gestor_x0020_de_x0020_cuenta} onChange={e => setForm({...form, Gestor_x0020_de_x0020_cuenta: e.target.value})} />
+                  <input className="form-input" value={form.GestordeCuenta} onChange={e => setForm({...form, GestordeCuenta: e.target.value})} />
                 </div>
               </div>
             </div>
@@ -1316,24 +1334,24 @@ function InversionistasPage({ siteId }) {
             </div>
             <div className="modal-body">
               <div style={{marginBottom:12, display:'flex', gap:8}}>
-                <span className="badge badge-gray">{selected.fields.Tipo_x0020_de_x0020_Inversionista}</span>
-                {getEtapaBadge(selected.fields.Estado_x0020_KYC_x0020___x002F___x0020_DD)}
+                <span className="badge badge-gray">{selected.fields.field_1}</span>
+                {getEtapaBadge(selected.fields.field_10)}
               </div>
               <div className="detail-section-title">Datos de Contacto</div>
               <div className="detail-grid">
-                <div className="detail-item"><div className="detail-label">Email</div><div className="detail-value">{selected.fields.Email || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Teléfono / WhatsApp</div><div className="detail-value">{selected.fields["Telefono_x0020___x002F__x0020_Wh"] || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Ciudad</div><div className="detail-value">{selected.fields.City || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">País</div><div className="detail-value">{selected.fields.Country || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Representante Legal</div><div className="detail-value">{selected.fields.Representante_x0020_Legal || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Gestor de Cuenta</div><div className="detail-value">{selected.fields.Gestor_x0020_de_x0020_cuenta || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">field_2</div><div className="detail-value">{selected.fields.field_2 || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Teléfono / WhatsApp</div><div className="detail-value">{selected.fields["field_3"] || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Ciudad</div><div className="detail-value">{selected.fields.field_5 || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">País</div><div className="detail-value">{selected.fields.field_7 || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Representante Legal</div><div className="detail-value">{selected.fields.field_9 || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Gestor de Cuenta</div><div className="detail-value">{selected.fields.GestordeCuenta || "—"}</div></div>
               </div>
               <div className="detail-section-title">Datos Bancarios</div>
               <div className="detail-grid">
-                <div className="detail-item"><div className="detail-label">Banco</div><div className="detail-value">{selected.fields["Banco_x0020__x0028_para_x0020_di"] || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Tipo de Cuenta</div><div className="detail-value">{selected.fields.Tipo_x0020_de_x0020_Cuenta_x0020_B || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Routing / ABA</div><div className="detail-value">{selected.fields["Routing_x0020___x002F__x0020_ABA_"] || "—"}</div></div>
-                <div className="detail-item"><div className="detail-label">Titular Cuenta</div><div className="detail-value">{selected.fields.Nombre_x0020_Titular_x0020_Cuenta || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">field_14</div><div className="detail-value">{selected.fields["field_14"] || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Tipo de Cuenta</div><div className="detail-value">{selected.fields.field_15 || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Routing / ABA</div><div className="detail-value">{selected.fields["field_16"] || "—"}</div></div>
+                <div className="detail-item"><div className="detail-label">Titular Cuenta</div><div className="detail-value">{selected.fields.field_18 || "—"}</div></div>
               </div>
             </div>
             <div className="modal-footer">
@@ -1358,11 +1376,11 @@ function HitosPage({ siteId }) {
     async function load() {
       if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
         setItems([
-          { id:1, fields: { Title:"Firma SA Brickell", Tipo_x0020_Hito:"Contrato", Estado_x0020_Aprobacion:"Aprobado", "Proyecto_x0020__x003A__x0020_Tit":"Brickell Office Tower", Solicitado_x0020_por:"Sebastián Correa", "Aprobado_x002F__x0020_Completado_x0020_por":"Juan Sebastián", Fecha_x0020_de_x0020_Solicitud:"2025-09-20", Link_x0020_al_x0020_documento_x00:"https://sharepoint.com" }},
-          { id:2, fields: { Title:"Aprobación Brochure Aventura", Tipo_x0020_Hito:"Aprobación", Estado_x0020_Aprobacion:"Pendiente", "Proyecto_x0020__x003A__x0020_Tit":"Aventura Retail Plaza", Solicitado_x0020_por:"Pedro García", Fecha_x0020_de_x0020_Solicitud:"2025-10-05" }},
-          { id:3, fields: { Title:"LOI Doral Warehouse", Tipo_x0020_Hito:"Legal", Estado_x0020_Aprobacion:"En Revisión", "Proyecto_x0020__x003A__x0020_Tit":"Doral Warehouse Complex", Solicitado_x0020_por:"Juan Sebastián", Fecha_x0020_de_x0020_Solicitud:"2025-10-10" }},
-          { id:4, fields: { Title:"EIN Coral Gables", Tipo_x0020_Hito:"Legal", Estado_x0020_Aprobacion:"Aprobado", "Proyecto_x0020__x003A__x0020_Tit":"Coral Gables Office", Solicitado_x0020_por:"Paula Arbeláez", "Aprobado_x002F__x0020_Completado_x0020_por":"Abogados", Fecha_x0020_de_x0020_Solicitud:"2025-07-15" }},
-          { id:5, fields: { Title:"DD Inversionista Omega", Tipo_x0020_Hito:"Due Diligence", Estado_x0020_Aprobacion:"Pendiente", "Proyecto_x0020__x003A__x0020_Tit":"Aventura Retail Plaza", Solicitado_x0020_por:"Camila Osorio", Fecha_x0020_de_x0020_Solicitud:"2025-10-15" }},
+          { id:1, fields: { Title:"Firma SA Brickell", TipoHito:"Contrato", EstadoAprobaci_x00f3_n:"Aprobado", "NombreProyecto":"Brickell Office Tower", SolicitadoporLookupId:"Sebastián Correa", "AprobadoCompletadopor":"Juan Sebastián", FechadeSolicitud:"2025-09-20", LinkaldocumentoURL:"https://sharepoint.com" }},
+          { id:2, fields: { Title:"Aprobación Brochure Aventura", TipoHito:"Aprobación", EstadoAprobaci_x00f3_n:"Pendiente", "NombreProyecto":"Aventura Retail Plaza", SolicitadoporLookupId:"Pedro García", FechadeSolicitud:"2025-10-05" }},
+          { id:3, fields: { Title:"LOI Doral Warehouse", TipoHito:"Legal", EstadoAprobaci_x00f3_n:"En Revisión", "NombreProyecto":"Doral Warehouse Complex", SolicitadoporLookupId:"Juan Sebastián", FechadeSolicitud:"2025-10-10" }},
+          { id:4, fields: { Title:"EIN Coral Gables", TipoHito:"Legal", EstadoAprobaci_x00f3_n:"Aprobado", "NombreProyecto":"Coral Gables Office", SolicitadoporLookupId:"Paula Arbeláez", "AprobadoCompletadopor":"Abogados", FechadeSolicitud:"2025-07-15" }},
+          { id:5, fields: { Title:"DD Inversionista Omega", TipoHito:"Due Diligence", EstadoAprobaci_x00f3_n:"Pendiente", "NombreProyecto":"Aventura Retail Plaza", SolicitadoporLookupId:"Camila Osorio", FechadeSolicitud:"2025-10-15" }},
         ]);
         setLoading(false); return;
       }
@@ -1376,7 +1394,7 @@ function HitosPage({ siteId }) {
   }, [siteId]);
 
   const estados = ["Todos", "Pendiente", "En Revisión", "Aprobado", "Rechazado"];
-  const filtered = filter === "Todos" ? items : items.filter(i => i.fields.Estado_x0020_Aprobacion === filter);
+  const filtered = filter === "Todos" ? items : items.filter(i => i.fields.EstadoAprobaci_x00f3_n === filter);
 
   if (loading) return <Loading />;
 
@@ -1388,7 +1406,7 @@ function HitosPage({ siteId }) {
       <div className="tabs">
         {estados.map(e => (
           <div key={e} className={`tab ${filter === e ? 'active' : ''}`} onClick={() => setFilter(e)}>
-            {e} {e !== "Todos" && <span style={{opacity:0.6}}>({items.filter(i => i.fields.Estado_x0020_Aprobacion === e).length})</span>}
+            {e} {e !== "Todos" && <span style={{opacity:0.6}}>({items.filter(i => i.fields.EstadoAprobaci_x00f3_n === e).length})</span>}
           </div>
         ))}
       </div>
@@ -1410,15 +1428,15 @@ function HitosPage({ siteId }) {
             {filtered.map(h => (
               <tr key={h.id}>
                 <td style={{fontWeight:500}}>{h.fields.Title}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["Proyecto_x0020__x003A__x0020_Tit"] || h.fields.Proyecto || "—"}</td>
-                <td><span className="badge badge-gray" style={{fontSize:9}}>{h.fields.Tipo_x0020_Hito || "—"}</span></td>
-                <td>{getEtapaBadge(h.fields.Estado_x0020_Aprobacion)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields.Solicitado_x0020_por || "—"}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["Aprobado_x002F__x0020_Completado_x0020_por"] || "—"}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(h.fields.Fecha_x0020_de_x0020_Solicitud)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["NombreProyecto"] || h.fields.Proyecto || "—"}</td>
+                <td><span className="badge badge-gray" style={{fontSize:9}}>{h.fields.TipoHito || "—"}</span></td>
+                <td>{getEtapaBadge(h.fields.EstadoAprobaci_x00f3_n)}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields.SolicitadoporLookupId || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["AprobadoCompletadopor"] || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(h.fields.FechadeSolicitud)}</td>
                 <td>
-                  {h.fields.Link_x0020_al_x0020_documento_x00
-                    ? <a href={h.fields.Link_x0020_al_x0020_documento_x00} target="_blank" style={{color:'var(--gold)', fontSize:12}}>Ver doc ↗</a>
+                  {h.fields.LinkaldocumentoURL
+                    ? <a href={h.fields.LinkaldocumentoURL} target="_blank" style={{color:'var(--gold)', fontSize:12}}>Ver doc ↗</a>
                     : <span style={{color:'var(--text-dim)', fontSize:12}}>—</span>}
                 </td>
               </tr>
