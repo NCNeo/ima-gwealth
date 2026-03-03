@@ -604,7 +604,7 @@ const { useState, useEffect, useCallback } = React;
 const CONFIG = {
   clientId: "93b3b0ca-0a85-46ee-baab-83e5057fe6ef",
   tenantId: "3ba3bb69-adc5-4b25-8b0b-ae30ae6add15",
-  redirectUri: window.location.origin,
+  redirectUri: window.location.href.split('?')[0].split('#')[0],
   scopes: ["https://graph.microsoft.com/Sites.ReadWrite.All", "https://graph.microsoft.com/Files.ReadWrite.All"],
   // Actualiza con el ID real de tu sitio SharePoint
   // Para obtenerlo: GET https://graph.microsoft.com/v1.0/sites?search=gwealth
