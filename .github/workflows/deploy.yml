@@ -1,0 +1,26 @@
+name: Deploy to Azure
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: /
+          skip_api_build: true
+```
+
+**Paso 3** — Agrega el token como secret en GitHub:
+```
+Tu repo → Settings → Secrets and variables → Actions
+→ New repository secret
+→ Name: AZURE_TOKEN
+→ Value: f00ff33bcfd2500791...  (tu token completo)
+→ Add secret
