@@ -608,8 +608,8 @@ const CONFIG = {
   scopes: ["https://graph.microsoft.com/Sites.ReadWrite.All", "https://graph.microsoft.com/Files.ReadWrite.All"],
   // Actualiza con el ID real de tu sitio SharePoint
   // Para obtenerlo: GET https://graph.microsoft.com/v1.0/sites?search=gwealth
-  siteInversionistas: "gwealthm.sharepoint.com:/sites/Inversionistas:",
-  siteProyectos: "gwealthm.sharepoint.com:/sites/ProyectosActivos:",
+  siteInversionistas: "gwealthm.sharepoint.com,61a299d4-459e-49de-abf0-543254b6f15d,39b5bba6-e439-45f0-9bdc-74373c693c3f",
+  siteProyectos: "gwealthm.sharepoint.com,4c74ecde-84a7-414d-abe8-e6deb0bd03d9,39b5bba6-e439-45f0-9bdc-74373c693c3f",
 };
 
 // MSAL Instance
@@ -760,7 +760,7 @@ function Dashboard({ siteInv, siteProy }) {
     async function load() {
       try {
         const [proyRes, actRes, hitoRes, invRes, inversionRes] = await Promise.all([
-          callGraph(`/sites/${siteProy}/lists/Proyectos de Inversi%C3%B3n/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteProy}/lists/Proyectos de Inversin/items?$expand=fields&$top=100`),
           callGraph(`/sites/${siteProy}/lists/Activos Inmobiliarios/items?$expand=fields&$top=100`),
           callGraph(`/sites/${siteProy}/lists/Hitos y Aprobaciones/items?$expand=fields&$top=100`),
           callGraph(`/sites/${siteInv}/lists/Inversionistas/items?$expand=fields&$top=100`),
@@ -921,7 +921,7 @@ function ProyectosPage({ siteId }) {
         setLoading(false); return;
       }
       try {
-        const res = await callGraph(`/sites/${siteId}/lists/Proyectos de Inversión/items?$expand=fields&$top=100`);
+        const res = await callGraph(`/sites/${siteId}/lists/Proyectos de Inversin/items?$expand=fields&$top=100`);
         setItems(res.value || []);
       } catch(e) { setError(e.message); }
       finally { setLoading(false); }
@@ -935,8 +935,8 @@ function ProyectosPage({ siteId }) {
     setSaving(true);
     try {
       if (siteId && siteId !== "PENDIENTE_CONFIGURAR") {
-        await postGraph(`/sites/${siteId}/lists/Proyectos de Inversión/items`, { fields: form });
-        const res = await callGraph(`/sites/${siteId}/lists/Proyectos de Inversión/items?$expand=fields&$top=100`);
+        await postGraph(`/sites/${siteId}/lists/Proyectos de Inversin/items`, { fields: form });
+        const res = await callGraph(`/sites/${siteId}/lists/Proyectos de Inversin/items?$expand=fields&$top=100`);
         setItems(res.value || []);
       } else {
         setItems(prev => [...prev, { id: Date.now(), fields: { ...form } }]);
