@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>IMA Platform — GWealth</title>
 
 <!-- Favicons -->
@@ -661,17 +661,246 @@
     object-position: center;
   }
 
-  @media (max-width: 1200px) {
+  /* ============================================
+     RESPONSIVE DESIGN - MOBILE FIRST
+     ============================================ */
+  
+  /* Tablets y iPad (768px - 1024px) */
+  @media (max-width: 1024px) {
+    .sidebar { width: 220px; min-width: 220px; }
+    .main { margin-left: 220px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .page { padding: 24px; }
+    .section-title { font-size: 22px; }
+    .kpi-value { font-size: 32px; }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { min-width: 800px; }
+  }
+  
+  /* Tablets pequeñas y móviles grandes (576px - 767px) */
+  @media (max-width: 767px) {
+    .sidebar { 
+      width: 280px; 
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+      box-shadow: 2px 0 20px rgba(0,0,0,0.15);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+    .sidebar-overlay.open { opacity: 1; visibility: visible; }
+    .main { margin-left: 0; }
+    .topbar { 
+      height: 60px; 
+      padding: 0 16px;
+      position: fixed;
+      width: 100%;
+      left: 0;
+    }
+    .topbar-title { font-size: 18px; }
+    .menu-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      background: transparent;
+      border: 1px solid var(--gw-border);
+      border-radius: 10px;
+      color: var(--gw-heading);
+      font-size: 20px;
+      cursor: pointer;
+      margin-right: 12px;
+    }
+    .page { 
+      padding: 80px 16px 24px; 
+      margin-top: 0;
+    }
+    .kpi-grid { 
+      grid-template-columns: 1fr; 
+      gap: 16px;
+    }
+    .kpi-card { padding: 20px; }
+    .kpi-value { font-size: 32px; }
+    .section-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .section-title { font-size: 20px; }
+    .btn { 
+      width: 100%; 
+      justify-content: center;
+      padding: 14px 22px;
+      font-size: 13px;
+    }
+    .table-wrap { 
+      overflow-x: auto; 
+      -webkit-overflow-scrolling: touch;
+      border-radius: 12px;
+    }
+    table { min-width: 900px; }
+    th, td { 
+      padding: 12px 16px; 
+      font-size: 12px;
+    }
+    .modal {
+      max-width: 95%;
+      max-height: 85vh;
+      border-radius: 12px;
+    }
+    .modal-header { padding: 20px; }
+    .modal-body { padding: 20px; }
+    .modal-footer { 
+      padding: 16px 20px;
+      flex-direction: column;
+    }
+    .modal-footer .btn { width: 100%; }
+    .form-grid { grid-template-columns: 1fr; gap: 12px; }
+    .form-input, .form-select {
+      padding: 14px 16px;
+      font-size: 16px; /* Evita zoom en iOS */
+      min-height: 48px;
+    }
+    .login-card {
+      width: 92%;
+      padding: 40px 24px;
+      margin: 16px;
+    }
+    .login-title { font-size: 26px; }
+    .login-logo-wrap { width: 64px; height: 64px; }
+    .badge { padding: 5px 10px; font-size: 9px; }
+    .nav-item {
+      padding: 14px 16px;
+      font-size: 14px;
+    }
+    .user-card { padding: 14px; }
+    .logout-btn { padding: 12px; }
+    .search-input { 
+      max-width: 100%; 
+      padding: 12px 16px;
+      font-size: 16px;
+      min-height: 48px;
+    }
+    .table-toolbar { 
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      padding: 16px;
+    }
+    .topbar-actions { display: none; }
+  }
+  
+  /* Móviles pequeños (hasta 575px) */
+  @media (max-width: 575px) {
+    .page { padding: 76px 12px 20px; }
+    .kpi-card { 
+      padding: 16px; 
+      border-radius: 12px;
+    }
+    .kpi-value { font-size: 28px; }
+    .kpi-label { font-size: 9px; }
+    .kpi-icon { width: 28px; height: 28px; }
+    .section-title { font-size: 18px; }
+    .modal-title { font-size: 20px; }
+    th, td { 
+      padding: 10px 12px; 
+      font-size: 11px;
+    }
+    .btn { 
+      padding: 12px 20px;
+      font-size: 12px;
+    }
+    .login-card {
+      padding: 32px 20px;
+    }
+    .login-title { font-size: 22px; }
+    .login-subtitle { font-size: 11px; }
+    .form-label { font-size: 9px; }
+    .detail-grid { grid-template-columns: 1fr; }
+    .sidebar { width: 260px; }
+  }
+  
+  /* iPhone SE, Galaxy S8 y similares (hasta 375px) */
+  @media (max-width: 375px) {
+    .topbar { height: 56px; }
+    .page { padding: 72px 10px 16px; }
+    .kpi-value { font-size: 24px; }
+    .section-title { font-size: 16px; }
+    .btn { 
+      padding: 10px 18px;
+      font-size: 11px;
+    }
+    .login-title { font-size: 20px; }
+    .login-card { padding: 28px 16px; }
+    .nav-item { padding: 12px 14px; font-size: 13px; }
+    th, td { padding: 8px 10px; font-size: 10px; }
+    .form-input, .form-select { padding: 12px 14px; }
+  }
+  
+  /* Orientación landscape en móviles */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .sidebar { 
+      width: 240px;
+      overflow-y: auto;
+    }
+    .sidebar-logo { padding: 16px; }
+    .sidebar-nav { padding: 8px; }
+    .nav-item { padding: 8px 12px; margin-bottom: 1px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .kpi-card { padding: 12px; }
+    .modal { max-height: 80vh; }
+  }
+  
+  /* iPad Pro y tablets grandes */
+  @media (min-width: 1025px) and (max-width: 1366px) {
+    .sidebar { width: 240px; min-width: 240px; }
+    .main { margin-left: 240px; }
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   }
   
-  @media (max-width: 768px) {
-    .sidebar { width: 100%; transform: translateX(-100%); }
-    .sidebar.open { transform: translateX(0); }
-    .main { margin-left: 0; }
-    .kpi-grid { grid-template-columns: 1fr; }
-    .page { padding: 20px; }
-    .form-grid { grid-template-columns: 1fr; }
+  /* Touch-friendly improvements */
+  @media (pointer: coarse) {
+    .nav-item { min-height: 48px; }
+    .btn { min-height: 48px; }
+    .form-input, .form-select { min-height: 48px; }
+    .modal-close { width: 40px; height: 40px; }
+    .login-btn { min-height: 52px; }
+    .logout-btn { min-height: 44px; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { border-radius: 3px; }
+  }
+  
+  /* Ocultar menú hamburguesa en desktop */
+  .menu-toggle { display: none; }
+  @media (max-width: 767px) {
+    .menu-toggle { display: flex; }
+  }
+  
+  /* Safe areas para iPhone X+ */
+  @supports (padding: max(0px)) {
+    @media (max-width: 767px) {
+      .page {
+        padding-left: max(16px, env(safe-area-inset-left));
+        padding-right: max(16px, env(safe-area-inset-right));
+        padding-bottom: max(24px, env(safe-area-inset-bottom));
+      }
+      .sidebar {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      .topbar {
+        padding-top: max(0px, env(safe-area-inset-top));
+      }
+    }
   }
 </style>
 </head>
@@ -1362,7 +1591,7 @@ function InversionistasPage({ siteId }) {
 }
 
 // ==================== NAVIGATION ====================
-function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
+function Sidebar({ user, activeTab, setActiveTab, onLogout, isOpen, onClose }) {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'proyectos', label: 'Proyectos', icon: '📁' },
@@ -1370,8 +1599,13 @@ function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
     { id: 'inversionistas', label: 'Inversionistas', icon: '👤' },
   ];
 
+  const handleNavClick = (itemId) => {
+    setActiveTab(itemId);
+    if (onClose) onClose();
+  };
+
   return (
-    <div className="sidebar">
+    <div className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">
           <img src={ASSETS.logo} alt="GWealth" />
@@ -1388,7 +1622,7 @@ function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
           <div 
             key={item.id}
             className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(item.id)}
+            onClick={() => handleNavClick(item.id)}
           >
             <span className="nav-icon">{item.icon}</span>
             <span>{item.label}</span>
@@ -1410,10 +1644,15 @@ function Sidebar({ user, activeTab, setActiveTab, onLogout }) {
   );
 }
 
-function Topbar({ title }) {
+function Topbar({ title, onMenuClick }) {
   return (
     <div className="topbar">
-      <div className="topbar-title">{title}</div>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <button className="menu-toggle" onClick={onMenuClick} aria-label="Menú">
+          ☰
+        </button>
+        <div className="topbar-title">{title}</div>
+      </div>
       <div className="topbar-actions">
         <div className="topbar-badge">
           <span className="dot"></span>
@@ -1430,6 +1669,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const accounts = msalInstance.getAllAccounts();
@@ -1438,6 +1678,17 @@ function App() {
       setIsAuthenticated(true);
     }
     setLoading(false);
+  }, []);
+
+  // Cerrar sidebar al cambiar de tamaño a desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 767) {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleLogin = async () => {
@@ -1458,6 +1709,11 @@ function App() {
     msalInstance.logout();
     setUser(null);
     setIsAuthenticated(false);
+  };
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
   };
 
   const getPageTitle = () => {
@@ -1499,9 +1755,26 @@ function App() {
 
   return (
     <div className="app">
-      <Sidebar user={user} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} />
+      {/* Overlay para cerrar menú en móvil */}
+      <div 
+        className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+      />
+      
+      <Sidebar 
+        user={user} 
+        activeTab={activeTab} 
+        setActiveTab={handleTabChange} 
+        onLogout={handleLogout}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+      
       <div className="main">
-        <Topbar title={getPageTitle()} />
+        <Topbar 
+          title={getPageTitle()} 
+          onMenuClick={() => setSidebarOpen(true)}
+        />
         {renderContent()}
       </div>
     </div>
