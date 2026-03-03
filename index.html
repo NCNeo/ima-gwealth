@@ -608,7 +608,8 @@ const CONFIG = {
   scopes: ["https://graph.microsoft.com/Sites.ReadWrite.All", "https://graph.microsoft.com/Files.ReadWrite.All"],
   // Actualiza con el ID real de tu sitio SharePoint
   // Para obtenerlo: GET https://graph.microsoft.com/v1.0/sites?search=gwealth
-  sharePointSiteId: "PENDIENTE_CONFIGURAR",
+  siteInversionistas: "gwealthm.sharepoint.com:/sites/Inversionistas:",
+  siteProyectos: "gwealthm.sharepoint.com:/sites/ProyectosActivos:",
 };
 
 // MSAL Instance
@@ -750,53 +751,20 @@ function LoginScreen({ onLogin, loading }) {
 // ============================================================
 // DASHBOARD
 // ============================================================
-function Dashboard({ siteId }) {
+function Dashboard({ siteInv, siteProy }) {
   const [data, setData] = useState({ proyectos: [], activos: [], inversionistas: [], inversiones: [], hitos: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     async function load() {
-      if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
-        // Datos demo cuando no está configurado el siteId
-        setData({
-          proyectos: [
-            { id:1, fields: { Title:"Brickell Office Tower", Etapa_x0020_Actual:"Funding", Monto_x0020_Target:"8500000", Monto_x0020_Levantado:"6200000", Nombre_x0020_de_x0020_la_x0020_L:"GW Brickell LLC", Responsable_x0020_Operativo:"Sebastián Correa" }},
-            { id:2, fields: { Title:"Aventura Retail Plaza", Etapa_x0020_Actual:"Ventas", Monto_x0020_Target:"12000000", Monto_x0020_Levantado:"3400000", Nombre_x0020_de_x0020_la_x0020_L:"GW Aventura LLC", Responsable_x0020_Operativo:"Pedro García" }},
-            { id:3, fields: { Title:"Doral Warehouse Complex", Etapa_x0020_Actual:"Due Diligence", Monto_x0020_Target:"5500000", Monto_x0020_Levantado:"5500000", Nombre_x0020_de_x0020_la_x0020_L:"GW Doral LLC", Responsable_x0020_Operativo:"Juan Sebastián" }},
-            { id:4, fields: { Title:"Coral Gables Office", Etapa_x0020_Actual:"Post Closing", Monto_x0020_Target:"9000000", Monto_x0020_Levantado:"9000000", Nombre_x0020_de_x0020_la_x0020_L:"GW Coral LLC", Responsable_x0020_Operativo:"Sebastián Correa" }},
-          ],
-          activos: [
-            { id:1, fields: { Title:"Tower 1851 Brickell", Tipo_x0020_de_x0020_activo:"Oficinas", Estado:"Activo", Ciudad:"Miami", Precio_x0020_Oferta:"8200000", Cap_x0020_Rate_x0020___x0025_:"5.8" }},
-            { id:2, fields: { Title:"Aventura Mall Strip", Tipo_x0020_de_x0020_activo:"Retail", Estado:"En Evaluación", Ciudad:"Aventura", Precio_x0020_Oferta:"11500000", Cap_x0020_Rate_x0020___x0025_:"6.2" }},
-            { id:3, fields: { Title:"Doral Industrial Park", Tipo_x0020_de_x0020_activo:"Bodega", Estado:"Activo", Ciudad:"Doral", Precio_x0020_Oferta:"5200000", Cap_x0020_Rate_x0020___x0025_:"7.1" }},
-          ],
-          inversionistas: [
-            { id:1, fields: { Title:"Carlos Mendoza", Tipo_x0020_de_x0020_Inversionista:"Persona Natural", Email:"cmendoza@email.com", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Aprobado", Gestor_x0020_de_x0020_cuenta:"Camila Osorio" }},
-            { id:2, fields: { Title:"Inversiones Omega S.A.", Tipo_x0020_de_x0020_Inversionista:"Persona Jurídica", Email:"info@omega.com", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Pendiente", Gestor_x0020_de_x0020_cuenta:"Camila Osorio" }},
-            { id:3, fields: { Title:"Roberto Jiménez", Tipo_x0020_de_x0020_Inversionista:"Persona Natural", Email:"rjimenez@email.com", Estado_x0020_KYC_x0020___x002F___x0020_DD:"Aprobado", Gestor_x0020_de_x0020_cuenta:"Pedro García" }},
-          ],
-          inversiones: [
-            { id:1, fields: { Title:"Mendoza - Brickell", Monto:"500000", Estado:"Pagado" }},
-            { id:2, fields: { Title:"Omega - Aventura", Monto:"1200000", Estado:"Hard Deposit" }},
-            { id:3, fields: { Title:"Jiménez - Doral", Monto:"350000", Estado:"Full Payment" }},
-          ],
-          hitos: [
-            { id:1, fields: { Title:"Firma SA Brickell", Tipo_x0020_Hito:"Contrato", Estado_x0020_Aprobacion:"Aprobado", Proyecto_x0020__x003A__x0020_Tit:"Brickell Office Tower", Aprobado_x002F__x0020_Completado_x0020_por:"Juan Sebastián" }},
-            { id:2, fields: { Title:"Brochure Aventura", Tipo_x0020_Hito:"Aprobación", Estado_x0020_Aprobacion:"Pendiente", Proyecto_x0020__x003A__x0020_Tit:"Aventura Retail Plaza", Solicitado_x0020_por:"Sebastián Correa" }},
-            { id:3, fields: { Title:"LOI Doral", Tipo_x0020_Hito:"Legal", Estado_x0020_Aprobacion:"En Revisión", Proyecto_x0020__x003A__x0020_Tit:"Doral Warehouse Complex", Solicitado_x0020_por:"Pedro García" }},
-          ]
-        });
-        setLoading(false);
-        return;
-      }
       try {
-        const [proyRes, actRes, invRes, inversionRes, hitoRes] = await Promise.all([
-          callGraph(`/sites/${siteId}/lists/Proyectos de Inversión/items?$expand=fields`),
-          callGraph(`/sites/${siteId}/lists/Activos Inmobiliarios/items?$expand=fields`),
-          callGraph(`/sites/${siteId}/lists/Inversionistas/items?$expand=fields`),
-          callGraph(`/sites/${siteId}/lists/Inversiones (Inversionista × Proyecto)/items?$expand=fields`),
-          callGraph(`/sites/${siteId}/lists/Hitos y Aprobaciones/items?$expand=fields`),
+        const [proyRes, actRes, hitoRes, invRes, inversionRes] = await Promise.all([
+          callGraph(`/sites/${siteProy}/lists/Proyectos de Inversi%C3%B3n/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteProy}/lists/Activos Inmobiliarios/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteProy}/lists/Hitos y Aprobaciones/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteInv}/lists/Inversionistas/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteInv}/lists/Inversiones Inversionista  Proyecto/items?$expand=fields&$top=100`),
         ]);
         setData({
           proyectos: proyRes.value || [],
@@ -805,11 +773,27 @@ function Dashboard({ siteId }) {
           inversiones: inversionRes.value || [],
           hitos: hitoRes.value || [],
         });
-      } catch(e) { setError(e.message); }
+      } catch(e) {
+        setError(e.message);
+        // Fallback a datos demo
+        setData({
+          proyectos: [
+            { id:1, fields: { Title:"Brickell Office Tower", Etapa_x0020_Actual:"Funding", Monto_x0020_Target:"8500000", Monto_x0020_Levantado:"6200000", Nombre_x0020_de_x0020_la_x0020_L:"GW Brickell LLC", Responsable_x0020_Operativo:"Sebastián Correa" }},
+            { id:2, fields: { Title:"Aventura Retail Plaza", Etapa_x0020_Actual:"Ventas", Monto_x0020_Target:"12000000", Monto_x0020_Levantado:"3400000", Nombre_x0020_de_x0020_la_x0020_L:"GW Aventura LLC", Responsable_x0020_Operativo:"Pedro García" }},
+            { id:3, fields: { Title:"Doral Warehouse Complex", Etapa_x0020_Actual:"Due Diligence", Monto_x0020_Target:"5500000", Monto_x0020_Levantado:"5500000", Nombre_x0020_de_x0020_la_x0020_L:"GW Doral LLC", Responsable_x0020_Operativo:"Juan Sebastián" }},
+            { id:4, fields: { Title:"Coral Gables Office", Etapa_x0020_Actual:"Post Closing", Monto_x0020_Target:"9000000", Monto_x0020_Levantado:"9000000", Nombre_x0020_de_x0020_la_x0020_L:"GW Coral LLC", Responsable_x0020_Operativo:"Sebastián Correa" }},
+          ],
+          activos: [], inversionistas: [], inversiones: [],
+          hitos: [
+            { id:1, fields: { Title:"Firma SA Brickell", Tipo_x0020_Hito:"Contrato", Estado_x0020_Aprobacion:"Aprobado", Proyecto_x0020__x003A__x0020_Tit:"Brickell Office Tower" }},
+            { id:2, fields: { Title:"Brochure Aventura", Tipo_x0020_Hito:"Aprobación", Estado_x0020_Aprobacion:"Pendiente", Proyecto_x0020__x003A__x0020_Tit:"Aventura Retail Plaza" }},
+          ]
+        });
+      }
       finally { setLoading(false); }
     }
     load();
-  }, [siteId]);
+  }, [siteProy, siteInv]);
 
   if (loading) return <Loading text="Cargando plataforma..." />;
 
@@ -1456,7 +1440,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
   const [page, setPage] = useState("dashboard");
-  const [siteId, setSiteId] = useState(CONFIG.sharePointSiteId);
+  const [siteInv, setSiteInv] = useState(CONFIG.siteInversionistas);
+  const [siteProy, setSiteProy] = useState(CONFIG.siteProyectos);
   const [initDone, setInitDone] = useState(false);
 
   useEffect(() => {
@@ -1480,13 +1465,8 @@ function App() {
     try {
       const res = await msalInstance.loginPopup({ scopes: CONFIG.scopes });
       setUser(res.account);
-      // Intentar obtener el siteId automáticamente
-      try {
-        const sitesRes = await callGraph("/sites?search=gwealth");
-        if (sitesRes.value && sitesRes.value.length > 0) {
-          setSiteId(sitesRes.value[0].id);
-        }
-      } catch(e) { console.warn("No se pudo obtener siteId automáticamente"); }
+      // Sitios ya configurados directamente
+      console.log("Sites configurados:", CONFIG.siteInversionistas, CONFIG.siteProyectos);
     } catch(e) { console.error(e); }
     setLoginLoading(false);
   }
@@ -1554,16 +1534,16 @@ function App() {
           <div className="topbar-actions">
             <div className="topbar-badge">
               <div className="dot"></div>
-              {siteId !== "PENDIENTE_CONFIGURAR" ? "Conectado a SharePoint" : "Modo Demo"}
+              {siteInv !== "PENDIENTE_CONFIGURAR" ? "Conectado a SharePoint" : "Modo Demo"}
             </div>
           </div>
         </div>
 
-        {page === "dashboard" && <Dashboard siteId={siteId} />}
-        {page === "proyectos" && <ProyectosPage siteId={siteId} />}
-        {page === "activos" && <ActivosPage siteId={siteId} />}
-        {page === "inversionistas" && <InversionistasPage siteId={siteId} />}
-        {page === "hitos" && <HitosPage siteId={siteId} />}
+        {page === "dashboard" && <Dashboard siteInv={siteInv} siteProy={siteProy} />}
+        {page === "proyectos" && <ProyectosPage siteId={siteProy} />}
+        {page === "activos" && <ActivosPage siteId={siteProy} />}
+        {page === "inversionistas" && <InversionistasPage siteId={siteInv} />}
+        {page === "hitos" && <HitosPage siteId={siteProy} />}
       </div>
     </div>
   );
