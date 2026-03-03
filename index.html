@@ -666,8 +666,38 @@ async function postGraph(endpoint, body) {
 }
 
 // ============================================================
-// UTILITY
+// USER RESOLUTION - Cache de usuarios del sitio
 // ============================================================
+const userCache = {};
+
+async function resolveUser(siteId, lookupId) {
+  if (!lookupId) return null;
+  const key = `${siteId}_${lookupId}`;
+  if (userCache[key]) return userCache[key];
+  try {
+    const res = await callGraph(`/sites/${siteId}/lists/User Information List/items/${lookupId}?$expand=fields`);
+    const name = res.fields?.Title || res.fields?.Name || null;
+    if (name) userCache[key] = name;
+    return name;
+  } catch(e) {
+    return null;
+  }
+}
+
+async function resolveUsers(siteId, items, lookupFields) {
+  // Recolecta todos los LookupIds únicos
+  const ids = new Set();
+  items.forEach(item => {
+    lookupFields.forEach(f => {
+      if (item.fields[f]) ids.add(String(item.fields[f]));
+    });
+  });
+  // Resuelve en paralelo
+  await Promise.all([...ids].map(id => resolveUser(siteId, id)));
+  return userCache;
+}
+
+
 function getEtapaBadge(etapa) {
   const map = {
     "Negociación": { cls: "badge-orange", label: "Negociación" },
@@ -875,7 +905,7 @@ function Dashboard({ siteInv, siteProy }) {
                 <td>{getEtapaBadge(p.fields.EtapaActual)}</td>
                 <td>{fmtMoney(p.fields.MontoTarget)}</td>
                 <td style={{color:'var(--success)'}}>{fmtMoney(p.fields.MontoLevantado)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.ResponsableOperativo || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.ResponsableOperativo || p.createdBy?.user?.displayName?.split(" ")[0] || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -901,10 +931,10 @@ function Dashboard({ siteInv, siteProy }) {
             {data.hitos.map(h => (
               <tr key={h.id}>
                 <td style={{fontWeight:500}}>{h.fields.Title}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["NombreProyecto"] || h.fields.Proyecto || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["NombreProyecto"] || h.createdBy?.user?.displayName || "—"}</td>
                 <td style={{fontSize:12}}>{h.fields.TipoHito || "—"}</td>
                 <td>{getEtapaBadge(h.fields.EstadoAprobaci_x00f3_n)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["AprobadoCompletadopor"] || h.fields.SolicitadoporLookupId || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["AprobadoCompletadopor"] || h.createdBy?.user?.displayName?.split(" ")[0] || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -925,13 +955,14 @@ function ProyectosPage({ siteId }) {
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [users, setUsers] = useState({});
   const [form, setForm] = useState({ Title:"", EtapaActual:"Negociación", MontoTarget:"", NombredelaLLC:"", ResponsableOperativo:"" });
 
   useEffect(() => {
     async function load() {
       if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
         setItems([
-          { id:1, fields: { Title:"Brickell Office Tower", EtapaActual:"Funding", MontoTarget:"8500000", MontoLevantado:"6200000", NombredelaLLC:"GW Brickell LLC", ResponsableOperativo:"Sebastián Correa", FechaLOI:"2025-09-15", DescripciondelActivo:"Edificio de oficinas clase A en el corazón de Brickell, Miami." }},
+          { id:1, fields: { Title:"Brickell Office Tower", EtapaActual:"Funding", MontoTarget:"8500000", MontoLevantado:"6200000", NombredelaLLC:"GW Brickell LLC", ResponsableOperativo:"Sebastián Correa", FechaLOI:"2025-09-15" }},
           { id:2, fields: { Title:"Aventura Retail Plaza", EtapaActual:"Ventas", MontoTarget:"12000000", MontoLevantado:"3400000", NombredelaLLC:"GW Aventura LLC", ResponsableOperativo:"Pedro García", FechaLOI:"2025-10-01" }},
           { id:3, fields: { Title:"Doral Warehouse Complex", EtapaActual:"Due Diligence", MontoTarget:"5500000", MontoLevantado:"5500000", NombredelaLLC:"GW Doral LLC", ResponsableOperativo:"Juan Sebastián", FechaLOI:"2025-08-20" }},
           { id:4, fields: { Title:"Coral Gables Office", EtapaActual:"Post Closing", MontoTarget:"9000000", MontoLevantado:"9000000", NombredelaLLC:"GW Coral LLC", ResponsableOperativo:"Sebastián Correa", FechaLOI:"2025-07-10" }},
@@ -940,7 +971,11 @@ function ProyectosPage({ siteId }) {
       }
       try {
         const res = await callGraph(`/sites/${siteId}/lists/f74aa5f4-8b1f-4a7a-9177-f322a3627927/items?$expand=fields&$top=100`);
-        setItems(res.value || []);
+        const data = res.value || [];
+        setItems(data);
+        // Resolver nombres de usuarios
+        await resolveUsers(siteId, data, ["ResponsableOperativoLookupId", "ResponsableFinanzasLookupId"]);
+        setUsers({...userCache});
       } catch(e) { setError(e.message); }
       finally { setLoading(false); }
     }
@@ -1005,7 +1040,7 @@ function ProyectosPage({ siteId }) {
                 <td>{fmtMoney(p.fields.MontoTarget)}</td>
                 <td style={{color:'var(--success)'}}>{fmtMoney(p.fields.MontoLevantado)}</td>
                 <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(p.fields.FechaLOI)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.ResponsableOperativo || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{p.fields.ResponsableOperativo || users[`${siteId}_${p.fields.ResponsableOperativoLookupId}`] || "—"}</td>
                 <td><button className="btn btn-ghost btn-sm" onClick={() => setSelected(p)}>Ver</button></td>
               </tr>
             ))}
@@ -1124,10 +1159,12 @@ function ActivosPage({ siteId }) {
 
   const filtered = items.filter(i => i.fields.Title?.toLowerCase().includes(search.toLowerCase()));
 
-  const criterioCheck = (val) => val === "Sí" || val === true
+  const criterioCheck = (val) => val === "Aprobado" || val === "Sí" || val === true
     ? <span style={{color:'var(--success)'}}>✓</span>
-    : val === "No" || val === false
+    : val === "No Aprobado" || val === "No" || val === false
     ? <span style={{color:'var(--danger)'}}>✗</span>
+    : val === "Pendiente"
+    ? <span style={{color:'var(--warning)'}}>⏳</span>
     : <span style={{color:'var(--text-dim)'}}>—</span>;
 
   if (loading) return <Loading />;
@@ -1168,7 +1205,7 @@ function ActivosPage({ siteId }) {
                 <td style={{textAlign:'center'}}>{criterioCheck(a.fields.CriterioLocation)}</td>
                 <td style={{textAlign:'center'}}>{criterioCheck(a.fields.CriterioTenant)}</td>
                 <td style={{textAlign:'center'}}>{criterioCheck(a.fields["CriterioTesisdeinversi_x00f3_n"])}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{a.fields.BrokerReferente || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{a.fields.EvaluadorLookupId ? "Asignado" : "—"}</td>
                 <td>{getEtapaBadge(a.fields.Estado)}</td>
               </tr>
             ))}
@@ -1371,30 +1408,41 @@ function HitosPage({ siteId }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("Todos");
+  const [users, setUsers] = useState({});
 
   useEffect(() => {
     async function load() {
       if (!siteId || siteId === "PENDIENTE_CONFIGURAR") {
         setItems([
-          { id:1, fields: { Title:"Firma SA Brickell", TipoHito:"Contrato", EstadoAprobaci_x00f3_n:"Aprobado", "NombreProyecto":"Brickell Office Tower", SolicitadoporLookupId:"Sebastián Correa", "AprobadoCompletadopor":"Juan Sebastián", FechadeSolicitud:"2025-09-20", LinkaldocumentoURL:"https://sharepoint.com" }},
+          { id:1, fields: { Title:"Firma SA Brickell", TipoHito:"Contrato", EstadoAprobaci_x00f3_n:"Aprobado", "NombreProyecto":"Brickell Office Tower", SolicitadoporLookupId:"Sebastián Correa", "AprobadoCompletadopor":"Juan Sebastián", FechadeSolicitud:"2025-09-20" }},
           { id:2, fields: { Title:"Aprobación Brochure Aventura", TipoHito:"Aprobación", EstadoAprobaci_x00f3_n:"Pendiente", "NombreProyecto":"Aventura Retail Plaza", SolicitadoporLookupId:"Pedro García", FechadeSolicitud:"2025-10-05" }},
-          { id:3, fields: { Title:"LOI Doral Warehouse", TipoHito:"Legal", EstadoAprobaci_x00f3_n:"En Revisión", "NombreProyecto":"Doral Warehouse Complex", SolicitadoporLookupId:"Juan Sebastián", FechadeSolicitud:"2025-10-10" }},
-          { id:4, fields: { Title:"EIN Coral Gables", TipoHito:"Legal", EstadoAprobaci_x00f3_n:"Aprobado", "NombreProyecto":"Coral Gables Office", SolicitadoporLookupId:"Paula Arbeláez", "AprobadoCompletadopor":"Abogados", FechadeSolicitud:"2025-07-15" }},
-          { id:5, fields: { Title:"DD Inversionista Omega", TipoHito:"Due Diligence", EstadoAprobaci_x00f3_n:"Pendiente", "NombreProyecto":"Aventura Retail Plaza", SolicitadoporLookupId:"Camila Osorio", FechadeSolicitud:"2025-10-15" }},
+          { id:3, fields: { Title:"LOI Doral Warehouse", TipoHito:"Legal", EstadoAprobaci_x00f3_n:"Enviado a Aprobación", "NombreProyecto":"Doral Warehouse Complex", SolicitadoporLookupId:"Juan Sebastián", FechadeSolicitud:"2025-10-10" }},
         ]);
         setLoading(false); return;
       }
       try {
         const res = await callGraph(`/sites/${siteId}/lists/712d048d-0d2c-4f1c-a446-64ad65b1c8bd/items?$expand=fields&$top=100`);
-        setItems(res.value || []);
+        const data = res.value || [];
+        setItems(data);
+        await resolveUsers(siteId, data, ["SolicitadoporLookupId"]);
+        setUsers({...userCache});
       } catch(e) {}
       finally { setLoading(false); }
     }
     load();
   }, [siteId]);
 
+  // Mapeo de estados reales de SharePoint a labels del tab
+  const estadoMap = {
+    "Pendiente": "Pendiente",
+    "Enviado a Aprobación": "En Revisión",
+    "En Revisión": "En Revisión",
+    "Aprobado": "Aprobado",
+    "Rechazado": "Rechazado",
+  };
+
   const estados = ["Todos", "Pendiente", "En Revisión", "Aprobado", "Rechazado"];
-  const filtered = filter === "Todos" ? items : items.filter(i => i.fields.EstadoAprobaci_x00f3_n === filter);
+  const filtered = filter === "Todos" ? items : items.filter(i => estadoMap[i.fields.EstadoAprobaci_x00f3_n] === filter);
 
   if (loading) return <Loading />;
 
@@ -1406,7 +1454,7 @@ function HitosPage({ siteId }) {
       <div className="tabs">
         {estados.map(e => (
           <div key={e} className={`tab ${filter === e ? 'active' : ''}`} onClick={() => setFilter(e)}>
-            {e} {e !== "Todos" && <span style={{opacity:0.6}}>({items.filter(i => i.fields.EstadoAprobaci_x00f3_n === e).length})</span>}
+            {e} {e !== "Todos" && <span style={{opacity:0.6}}>({items.filter(i => estadoMap[i.fields.EstadoAprobaci_x00f3_n] === e).length})</span>}
           </div>
         ))}
       </div>
@@ -1428,10 +1476,10 @@ function HitosPage({ siteId }) {
             {filtered.map(h => (
               <tr key={h.id}>
                 <td style={{fontWeight:500}}>{h.fields.Title}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["NombreProyecto"] || h.fields.Proyecto || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["NombreProyecto"] || h.createdBy?.user?.displayName || "—"}</td>
                 <td><span className="badge badge-gray" style={{fontSize:9}}>{h.fields.TipoHito || "—"}</span></td>
                 <td>{getEtapaBadge(h.fields.EstadoAprobaci_x00f3_n)}</td>
-                <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields.SolicitadoporLookupId || "—"}</td>
+                <td style={{fontSize:12, color:'var(--text-muted)'}}>{users[`${siteId}_${h.fields.SolicitadoporLookupId}`] || h.fields.SolicitadoporLookupId || "—"}</td>
                 <td style={{fontSize:12, color:'var(--text-muted)'}}>{h.fields["AprobadoCompletadopor"] || "—"}</td>
                 <td style={{fontSize:12, color:'var(--text-muted)'}}>{fmtDate(h.fields.FechadeSolicitud)}</td>
                 <td>
