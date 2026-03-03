@@ -760,11 +760,11 @@ function Dashboard({ siteInv, siteProy }) {
     async function load() {
       try {
         const [proyRes, actRes, hitoRes, invRes, inversionRes] = await Promise.all([
-          callGraph(`/sites/${siteProy}/lists/Proyectos de Inversin/items?$expand=fields&$top=100`),
-          callGraph(`/sites/${siteProy}/lists/Activos Inmobiliarios/items?$expand=fields&$top=100`),
-          callGraph(`/sites/${siteProy}/lists/Hitos y Aprobaciones/items?$expand=fields&$top=100`),
-          callGraph(`/sites/${siteInv}/lists/Inversionistas/items?$expand=fields&$top=100`),
-          callGraph(`/sites/${siteInv}/lists/Inversiones Inversionista  Proyecto/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteProy}/lists/f74aa5f4-8b1f-4a7a-9177-f322a3627927/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteProy}/lists/d8ed32a6-93ee-4c9c-a5d2-14e59bc9c7c0/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteProy}/lists/712d048d-0d2c-4f1c-a446-64ad65b1c8bd/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteInv}/lists/374ee808-c667-4145-a9fd-57ba58eaf33e/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteInv}/lists/7d1635fb-b171-4cbc-98fe-6864d7ddb004/items?$expand=fields&$top=100`),
         ]);
         setData({
           proyectos: proyRes.value || [],
@@ -921,7 +921,7 @@ function ProyectosPage({ siteId }) {
         setLoading(false); return;
       }
       try {
-        const res = await callGraph(`/sites/${siteId}/lists/Proyectos de Inversin/items?$expand=fields&$top=100`);
+        const res = await callGraph(`/sites/${siteId}/lists/f74aa5f4-8b1f-4a7a-9177-f322a3627927/items?$expand=fields&$top=100`);
         setItems(res.value || []);
       } catch(e) { setError(e.message); }
       finally { setLoading(false); }
@@ -935,8 +935,8 @@ function ProyectosPage({ siteId }) {
     setSaving(true);
     try {
       if (siteId && siteId !== "PENDIENTE_CONFIGURAR") {
-        await postGraph(`/sites/${siteId}/lists/Proyectos de Inversin/items`, { fields: form });
-        const res = await callGraph(`/sites/${siteId}/lists/Proyectos de Inversin/items?$expand=fields&$top=100`);
+        await postGraph(`/sites/${siteId}/lists/f74aa5f4-8b1f-4a7a-9177-f322a3627927/items`, { fields: form });
+        const res = await callGraph(`/sites/${siteId}/lists/f74aa5f4-8b1f-4a7a-9177-f322a3627927/items?$expand=fields&$top=100`);
         setItems(res.value || []);
       } else {
         setItems(prev => [...prev, { id: Date.now(), fields: { ...form } }]);
@@ -1096,7 +1096,7 @@ function ActivosPage({ siteId }) {
         setLoading(false); return;
       }
       try {
-        const res = await callGraph(`/sites/${siteId}/lists/Activos Inmobiliarios/items?$expand=fields&$top=100`);
+        const res = await callGraph(`/sites/${siteId}/lists/d8ed32a6-93ee-4c9c-a5d2-14e59bc9c7c0/items?$expand=fields&$top=100`);
         setItems(res.value || []);
       } catch(e) {}
       finally { setLoading(false); }
@@ -1184,7 +1184,7 @@ function InversionistasPage({ siteId }) {
         setLoading(false); return;
       }
       try {
-        const res = await callGraph(`/sites/${siteId}/lists/Inversionistas/items?$expand=fields&$top=100`);
+        const res = await callGraph(`/sites/${siteId}/lists/374ee808-c667-4145-a9fd-57ba58eaf33e/items?$expand=fields&$top=100`);
         setItems(res.value || []);
       } catch(e) {}
       finally { setLoading(false); }
@@ -1196,8 +1196,8 @@ function InversionistasPage({ siteId }) {
     setSaving(true);
     try {
       if (siteId && siteId !== "PENDIENTE_CONFIGURAR") {
-        await postGraph(`/sites/${siteId}/lists/Inversionistas/items`, { fields: form });
-        const res = await callGraph(`/sites/${siteId}/lists/Inversionistas/items?$expand=fields&$top=100`);
+        await postGraph(`/sites/${siteId}/lists/374ee808-c667-4145-a9fd-57ba58eaf33e/items`, { fields: form });
+        const res = await callGraph(`/sites/${siteId}/lists/374ee808-c667-4145-a9fd-57ba58eaf33e/items?$expand=fields&$top=100`);
         setItems(res.value || []);
       } else {
         setItems(prev => [...prev, { id: Date.now(), fields: { ...form } }]);
@@ -1367,7 +1367,7 @@ function HitosPage({ siteId }) {
         setLoading(false); return;
       }
       try {
-        const res = await callGraph(`/sites/${siteId}/lists/Hitos y Aprobaciones/items?$expand=fields&$top=100`);
+        const res = await callGraph(`/sites/${siteId}/lists/712d048d-0d2c-4f1c-a446-64ad65b1c8bd/items?$expand=fields&$top=100`);
         setItems(res.value || []);
       } catch(e) {}
       finally { setLoading(false); }
