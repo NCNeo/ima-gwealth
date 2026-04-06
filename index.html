@@ -970,8 +970,10 @@ const PROJECT_SECTIONS = [
   {
     id: 'e3', label: 'E3 — Onboarding', icon: '🏢', color: '#2E6DA4',
     milestones: [
-      { id: 'brochure_elaborado', label: 'Brochure elaborado',                desc: 'Material de marketing usando template oficial (equipo de Ventas)', required: true },
-      { id: 'brochure_aprobado',  label: 'Brochure aprobado',                 desc: 'Aprobación multi-nivel: J.Sebastián → Pedro → Abogados', required: true, approval: true },
+      { id: 'brochure_onepager_realizado', label: 'Brochure One Pager realizado',       desc: 'One Pager de marketing usando template oficial (equipo de Ventas)', required: true },
+      { id: 'brochure_onepager_aprobado', label: 'Brochure One Pager aprobado',       desc: 'Aprobación Juan Sebastián', required: true, approval: true },
+      { id: 'brochure_full_realizado',    label: 'Brochure Full Version realizado',   desc: 'Brochure versión completa usando template oficial (equipo de Ventas)', required: true },
+      { id: 'brochure_full_aprobado',     label: 'Brochure Full Version aprobado',    desc: 'Aprobación Pedro', required: true, approval: true },
       { id: 'ein_obtenido',       label: 'EIN obtenido',                      desc: 'Employer Identification Number tramitado por abogados externos', required: true },
       { id: 'ts_proyecto',        label: 'Term Sheet del proyecto emitido',   desc: 'TS legal por abogados externos — condiciones de inversión', required: true, approval: true },
       { id: 'llc_constituida',    label: 'LLC constituida',                   desc: 'Acta de constitución + documentos en carpeta /Legal/LLC/', required: true },
@@ -987,17 +989,17 @@ const PROJECT_SECTIONS = [
   {
     id: 'e5', label: 'E5 — Due Diligence', icon: '🔍', color: '#6B2DA4',
     milestones: [
-      { id: 'dd_completo', label: 'Due Diligence completado para todos los inversionistas', desc: 'Todos los inversionistas con DD, TS, PPM y OA firmados', required: true, autoCheck: 'e5' },
+      { id: 'dd_completo', label: 'Due Diligence completado para todos los inversionistas', desc: 'Todos los inversionistas con DD, TS y SA firmados', required: true, autoCheck: 'e5' },
     ]
   },
   {
-    id: 'fondeo', label: 'Fondeo', icon: '💰', color: '#C8960C',
+    id: 'fondeo', label: 'E6 — Fondeo', icon: '💰', color: '#C8960C',
     milestones: [
       { id: 'fondeo_completo', label: 'Fondeo completado para todos los inversionistas', desc: 'Todos los GFD y Final Deposits recibidos', required: true, autoCheck: 'fondeo' },
     ]
   },
   {
-    id: 'post_closing', label: 'Post-Closing', icon: '🎉', color: '#2ECC8A',
+    id: 'post_closing', label: 'E7 — Post-Closing', icon: '🎉', color: '#2ECC8A',
     milestones: [
       { id: 'cierre_ejecutado',      label: 'Cierre ejecutado',                     desc: 'Transacción completada y titulada — proyecto activo', required: true },
       { id: 'confirmaciones_emitidas', label: 'Confirmaciones de fondos emitidas',  desc: 'Carta de confirmación de recepción a cada inversionista', required: true },
@@ -1382,12 +1384,18 @@ async function resolveUser(siteId, lookupId) {
 
 function getEtapaBadge(etapa) {
   const map = {
-    "Etapa 1: Evaluación": { cls: "badge-orange", label: "Evaluación" },
-    "Etapa 2: Negociación": { cls: "badge-orange", label: "Negociación" },
-    "Etapa 3: Due Diligence": { cls: "badge-orange", label: "Due Diligence" },
-    "Etapa 4: Funding": { cls: "badge-blue", label: "Funding" },
-    "Etapa 5: Cierre": { cls: "badge-gold", label: "Cierre" },
-    "Etapa 6: Post Closing": { cls: "badge-green", label: "Post Closing" },
+    "Etapa 1: Evaluación": { cls: "badge-orange", label: "E1 Evaluación" },
+    "Etapa 2: LOI & BP": { cls: "badge-orange", label: "E2 LOI & BP" },
+    "Etapa 3: Onboarding": { cls: "badge-orange", label: "E3 Onboarding" },
+    "Etapa 4: Inversionistas": { cls: "badge-blue", label: "E4 Inversionistas" },
+    "Etapa 5: Due Diligence": { cls: "badge-blue", label: "E5 Due Diligence" },
+    "Etapa 6: Fondeo": { cls: "badge-gold", label: "E6 Fondeo" },
+    "Etapa 7: Post-Closing": { cls: "badge-green", label: "E7 Post-Closing" },
+    "Etapa 2: Negociación": { cls: "badge-orange", label: "E2 LOI & BP" },
+    "Etapa 3: Due Diligence": { cls: "badge-orange", label: "E5 Due Diligence" },
+    "Etapa 4: Funding": { cls: "badge-blue", label: "E6 Fondeo" },
+    "Etapa 5: Cierre": { cls: "badge-gold", label: "E6 Fondeo" },
+    "Etapa 6: Post Closing": { cls: "badge-green", label: "E7 Post-Closing" },
     "En evaluación": { cls: "badge-orange", label: "En Evaluación" },
     "En Evaluación": { cls: "badge-orange", label: "En Evaluación" },
     "En proceso": { cls: "badge-blue", label: "En Proceso" },
@@ -1544,7 +1552,7 @@ function Dashboard({ siteInv, siteProy }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
-  const [filterEtapa, setFilterEtapa] = useState('all');
+  const [filterProyecto, setFilterProyecto] = useState('all');
   const [sortField, setSortField] = useState('fondeo');
   const [sortDir, setSortDir] = useState('desc');
 
@@ -1575,11 +1583,11 @@ function Dashboard({ siteInv, siteProy }) {
   if (loading) return <Loading text="Cargando plataforma..." />;
 
   // ─── FILTERS ─────────────────────────────────────────────────────────────
-  const etapas = [...new Set(data.proyectos.map(p => p.fields.EtapaActual).filter(Boolean))];
+  const proyectoNames = data.proyectos.map(p => ({ id: p.id, title: p.fields?.Title || '—' })).sort((a,b) => a.title.localeCompare(b.title));
   const activeProy = selectedProject
     ? data.proyectos.filter(p => p.id === selectedProject.id)
-    : filterEtapa !== 'all'
-      ? data.proyectos.filter(p => p.fields.EtapaActual === filterEtapa)
+    : filterProyecto !== 'all'
+      ? data.proyectos.filter(p => String(p.id) === String(filterProyecto))
       : data.proyectos;
 
   // ─── STRATEGIC metrics ───────────────────────────────────────────────────
@@ -1589,17 +1597,50 @@ function Dashboard({ siteInv, siteProy }) {
   const numProyectos   = activeProy.length;
   const numActivos     = data.activos.length;
   const numInv         = data.inversionistas.length;
-  // Conversion rate: activos with an active project / activos that are past early evaluation
+  // Pipeline: activos en E2+ / total activos
   const activosConProy    = new Set(activeProy.map(p => p.fields?.ActivoRelacionadoId).filter(Boolean));
   const activosEnPipeline = data.activos.filter(a => {
-    const est = a.fields?.Estado;
-    return est && est !== 'En evaluación' && est !== 'Descartado';
+    const est = a.fields?.Estado || '';
+    return est && est !== 'Etapa 1: Evaluación' && est !== 'En evaluación' && est !== 'Descartado';
   });
-  const convRate = activosEnPipeline.length > 0
-    ? Math.min(100, Math.round((activosConProy.size / activosEnPipeline.length) * 100))
+  const activosRechazados = data.activos.filter(a => (a.fields?.Estado || '') === 'Descartado').length;
+  const convRate = numActivos > 0
+    ? Math.min(100, Math.round((activosEnPipeline.length / numActivos) * 100))
     : 0;
   const avgPerProy     = numProyectos > 0 ? totalTarget / numProyectos : 0;
   const avgPerInv      = numInv > 0 ? totalLevantado / numInv : 0;
+
+  // ─── INVESTOR PROCESS KPIs ─────────────────────────────────────────────
+  // Calculate from participaciones across all projects
+  let totalParts = 0, tsFirmados = 0, saFirmados = 0, ddFirmados = 0;
+  let tsEnviados = 0, tsTiempos = [];
+  activeProy.forEach(p => {
+    try {
+      const parts = JSON.parse(p.fields?.Participaciones || '[]');
+      parts.forEach(pt => {
+        totalParts++;
+        if (pt.tsEstado === 'firmado') tsFirmados++;
+        if (pt.tsEstado === 'enviado' || pt.tsEstado === 'firmado') tsEnviados++;
+        if ((pt.saEstado || pt.ppmEstado) === 'firmado') saFirmados++;
+        if (pt.ddEstado === 'firmado') ddFirmados++;
+      });
+    } catch {}
+  });
+  const pctTsFirmados = tsEnviados > 0 ? Math.round(tsFirmados / tsEnviados * 100) : 0;
+  const pctFirmasCompletas = totalParts > 0 ? Math.round(((tsFirmados + saFirmados + ddFirmados) / (totalParts * 3)) * 100) : 0;
+  // Avg investor progress (DD + TS + SA = 3 steps, each firmado = 33%)
+  const avgInvProgress = totalParts > 0 ? Math.round(activeProy.reduce((s, p) => {
+    try {
+      const parts = JSON.parse(p.fields?.Participaciones || '[]');
+      return s + parts.reduce((ps, pt) => {
+        let score = 0;
+        if (pt.ddEstado === 'firmado') score += 33; else if (pt.ddEstado === 'enviado') score += 15;
+        if (pt.tsEstado === 'firmado') score += 33; else if (pt.tsEstado === 'enviado') score += 15;
+        if ((pt.saEstado||pt.ppmEstado) === 'firmado') score += 34; else if ((pt.saEstado||pt.ppmEstado) === 'enviado') score += 15;
+        return ps + score;
+      }, 0);
+    } catch { return s; }
+  }, 0) / totalParts) : 0;
 
   // ─── OPERATIONAL metrics ─────────────────────────────────────────────────
   // Avg milestone progress across all projects
@@ -1609,9 +1650,39 @@ function Dashboard({ siteInv, siteProy }) {
   const proyCompletos   = progresses.filter(v => v === 100).length;
 
   // Hitos metrics
-  const hitosPendientes = data.hitos.filter(h => (h.fields.EstadoAprobaci_x00f3_n || h.fields.EstadoAprobacion) === 'Pendiente').length;
+  const approvalTypes = ['BP1','BP2','Brochure One Pager','Brochure Full Version','TS - OA'];
+  const hitosPendientes = data.hitos.filter(h => {
+    const estado = h.fields.EstadoAprobaci_x00f3_n || h.fields.EstadoAprobacion;
+    const tipo = h.fields.TipoHito || '';
+    return (estado === 'Pendiente' || estado === 'En proceso') && approvalTypes.includes(tipo);
+  }).length;
 
-  // Avg resolution time per hito type (days between solicitud and resolución)
+  // Avg project resolution time (days between project creation and 100% completion)
+  const proyDias = [];
+  activeProy.forEach(p => {
+    const pct = calculateMilestoneProgress(p.fields?.Milestones).percentage;
+    if (pct === 100) {
+      const created = p.createdDateTime ? new Date(p.createdDateTime) : null;
+      // Find the most recent hito resolution date for this project
+      const proyHitos = data.hitos.filter(h => String(h.fields?.ProyectoLookupId || h.fields?.ProyectoId) === String(p.id));
+      let lastResolved = null;
+      proyHitos.forEach(h => {
+        const res = h.fields?.['FechadeResoluci_x00f3_n'] || h.fields?.FechaDeResolucion;
+        if (res) {
+          const d = new Date(res);
+          if (!lastResolved || d > lastResolved) lastResolved = d;
+        }
+      });
+      if (created && lastResolved && lastResolved > created) {
+        proyDias.push(Math.round((lastResolved - created) / 86400000));
+      }
+    }
+  });
+  const avgResolucion = proyDias.length > 0
+    ? (proyDias.reduce((s,v)=>s+v,0) / proyDias.length).toFixed(2)
+    : null;
+
+  // Time per phase chart data (still useful)
   const tiemposPorTipo = {};
   data.hitos.forEach(h => {
     const f = h.fields;
@@ -1625,13 +1696,9 @@ function Dashboard({ siteInv, siteProy }) {
       tiemposPorTipo[tipo].push(dias);
     }
   });
-  const tiposOrden = ['BP1','BP2','Brochure','LLC','TS/OA'];
+  const tiposOrden = ['BP1','BP2','Brochure One Pager','Brochure Full Version','TS - OA'];
   const tiposConDatos = tiposOrden.filter(t => tiemposPorTipo[t]?.length > 0);
-  const avgTotalDias = Object.values(tiemposPorTipo).flat();
-  const avgResolucion = avgTotalDias.length > 0
-    ? Math.round(avgTotalDias.reduce((s,v)=>s+v,0) / avgTotalDias.length)
-    : null;
-  const maxDias = Math.max(1, ...Object.values(tiemposPorTipo).map(arr => Math.max(...arr.map((_, i) => arr.reduce((a,b)=>a+b,0)/arr.length))));
+  const maxDias = Math.max(1, ...Object.values(tiemposPorTipo).map(arr => arr.length > 0 ? arr.reduce((a,b)=>a+b,0)/arr.length : 0));
 
   // Sorted projects for the table
   const sortedProyectos = [...activeProy].sort((a, b) => {
@@ -1718,11 +1785,11 @@ function Dashboard({ siteInv, siteProy }) {
       }}>
         <span style={{fontSize:12, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginRight:4}}>🔍 Filtrar:</span>
 
-        {/* Etapa filter */}
-        <select value={filterEtapa} onChange={e => { setFilterEtapa(e.target.value); setSelectedProject(null); }}
+        {/* Proyecto filter */}
+        <select value={filterProyecto} onChange={e => { setFilterProyecto(e.target.value); setSelectedProject(null); }}
           style={{padding:'6px 12px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:12, cursor:'pointer'}}>
-          <option value="all">Todas las etapas</option>
-          {etapas.map(e => <option key={e} value={e}>{e}</option>)}
+          <option value="all">Todos los proyectos</option>
+          {proyectoNames.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
         </select>
 
         {/* Selected project badge */}
@@ -1733,8 +1800,8 @@ function Dashboard({ siteInv, siteProy }) {
           </div>
         )}
 
-        {(filterEtapa !== 'all' || selectedProject) && (
-          <button onClick={() => { setFilterEtapa('all'); setSelectedProject(null); }}
+        {(filterProyecto !== 'all' || selectedProject) && (
+          <button onClick={() => { setFilterProyecto('all'); setSelectedProject(null); }}
             style={{padding:'5px 12px', background:'none', border:'1px solid var(--gw-border)', borderRadius:8, fontSize:12, cursor:'pointer', color:'var(--gw-muted)'}}>
             ✕ Limpiar filtros
           </button>
@@ -1779,12 +1846,12 @@ function Dashboard({ siteInv, siteProy }) {
         <KpiCard
           icon="⚡"
           accent="#8B5CF6"
-          label="Días prom. resolución"
+          label="Días prom. ciclo proyecto"
           value={avgResolucion !== null ? `${avgResolucion}d` : '—'}
           sub={avgResolucion !== null
-            ? avgResolucion <= 7 ? 'Proceso ágil ✅' : avgResolucion <= 14 ? 'Dentro del rango' : 'Por encima del objetivo'
-            : 'Sin hitos resueltos aún'}
-          subColor={avgResolucion === null ? 'var(--gw-muted)' : avgResolucion <= 7 ? 'var(--gw-success)' : avgResolucion <= 14 ? 'var(--gw-cyan)' : 'var(--gw-warning)'}
+            ? `${proyDias.length} proyecto${proyDias.length!==1?'s':''} completado${proyDias.length!==1?'s':''} · Creación → Cierre`
+            : 'Sin proyectos completados al 100% aún'}
+          subColor={avgResolucion === null ? 'var(--gw-muted)' : avgResolucion <= 90 ? 'var(--gw-success)' : avgResolucion <= 180 ? 'var(--gw-cyan)' : 'var(--gw-warning)'}
         />
 
         <KpiCard
@@ -1845,6 +1912,53 @@ function Dashboard({ siteInv, siteProy }) {
       )}
 
       {/* ═══════════════════════════════════════════════════
+          PANEL PROCESO INVERSIONISTAS
+      ═══════════════════════════════════════════════════ */}
+      {totalParts > 0 && (<>
+      <PanelHeader
+        title="🤝 Proceso de Inversionistas"
+        sub="Métricas de avance legal y documental por inversionista"
+        accent="#7B61FF"
+      />
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:14, marginBottom:32}}>
+        <KpiCard
+          icon="📝"
+          accent="#7B61FF"
+          label="% TS firmados"
+          value={`${pctTsFirmados}%`}
+          sub={`${tsFirmados} de ${tsEnviados} TS enviados fueron firmados`}
+          subColor={pctTsFirmados >= 70 ? 'var(--gw-success)' : pctTsFirmados >= 40 ? 'var(--gw-cyan)' : 'var(--gw-warning)'}
+          footer={<MiniBar pct={pctTsFirmados} color={pctTsFirmados>=70?'var(--gw-success)':pctTsFirmados>=40?'var(--gw-cyan)':'var(--gw-warning)'} />}
+        />
+        <KpiCard
+          icon="✍️"
+          accent="var(--gw-success)"
+          label="% Firmas completadas"
+          value={`${pctFirmasCompletas}%`}
+          sub={`DD: ${ddFirmados} · TS: ${tsFirmados} · SA: ${saFirmados} de ${totalParts} inversionistas`}
+          subColor={pctFirmasCompletas >= 70 ? 'var(--gw-success)' : 'var(--gw-warning)'}
+          footer={<MiniBar pct={pctFirmasCompletas} color={pctFirmasCompletas>=70?'var(--gw-success)':'var(--gw-warning)'} />}
+        />
+        <KpiCard
+          icon="📊"
+          accent="var(--gw-cyan)"
+          label="Avance prom. por inversionista"
+          value={`${avgInvProgress}%`}
+          sub={`Promedio de DD + TS + SA sobre ${totalParts} participaciones`}
+          subColor={avgInvProgress >= 70 ? 'var(--gw-success)' : avgInvProgress >= 40 ? 'var(--gw-cyan)' : 'var(--gw-warning)'}
+          footer={<MiniBar pct={avgInvProgress} color={avgInvProgress>=70?'var(--gw-success)':avgInvProgress>=40?'var(--gw-cyan)':'var(--gw-warning)'} />}
+        />
+        <KpiCard
+          icon="👥"
+          accent="var(--gw-warning)"
+          label="Inversionistas en proceso"
+          value={totalParts}
+          sub={`${tsFirmados + saFirmados + ddFirmados} firmas de ${totalParts * 3} requeridas`}
+        />
+      </div>
+      </>)}
+
+      {/* ═══════════════════════════════════════════════════
           PANEL ESTRATÉGICO
       ═══════════════════════════════════════════════════ */}
       <PanelHeader
@@ -1854,7 +1968,7 @@ function Dashboard({ siteInv, siteProy }) {
       />
 
       {/* KPI row 1 — strategic */}
-      <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:14, marginBottom:14}}>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:14, marginBottom:14}}>
         <KpiCard
           icon="🏢"
           accent="var(--gw-cyan)"
@@ -1865,11 +1979,19 @@ function Dashboard({ siteInv, siteProy }) {
         <KpiCard
           icon="🔄"
           accent={convRate >= 50 ? 'var(--gw-success)' : 'var(--gw-warning)'}
-          label="Pipeline activo"
+          label="Pipeline activo (E2+)"
           value={`${convRate}%`}
-          sub={`${activosConProy.size} de ${activosEnPipeline.length} activos en onboarding con proyecto`}
+          sub={`${activosEnPipeline.length} de ${numActivos} activos en etapas superiores a E1`}
           subColor={convRate >= 50 ? 'var(--gw-success)' : 'var(--gw-warning)'}
           footer={<MiniBar pct={convRate} color={convRate>=50?'var(--gw-success)':'var(--gw-warning)'} />}
+        />
+        <KpiCard
+          icon="🚫"
+          accent="#E74C3C"
+          label="Activos rechazados"
+          value={activosRechazados}
+          sub={numActivos > 0 ? `${Math.round(activosRechazados/numActivos*100)}% del total` : 'Sin activos'}
+          subColor={activosRechazados > 0 ? '#E74C3C' : 'var(--gw-success)'}
         />
         <KpiCard
           icon="💰"
@@ -2061,14 +2183,19 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   const [savingPart, setSavingPart] = useState(false);
   const [newPart, setNewPart] = useState({ invId:'', nombre:'', tipo:'natural', porcentaje:'', aporteEstado:'pendiente' });
   const [newProspect, setNewProspect] = useState({
-    Title:'', field_1:'juridica', field_2:'', field_3:'', field_4:'', field_5:'', field_6:'', field_7:'', field_9:'',
+    Title:'', field_1:'juridica', field_2:'', field_3:'', field_4:'', field_5:'', field_6:'', field_7:'', field_9:'', Broker:'',
     porcentaje:'', montoInversion:'', gfdPct:30, finalDepositPct:70, gfd:'', finalDeposit:'',
   });
 
+  // ── Abonos modal state ──
+  const [abonoModal, setAbonoModal] = useState(null); // { idx, part }
+  const [newAbono, setNewAbono] = useState({ fecha:'', monto:'', tipo:'gfd', referencia:'', notas:'' });
+
   const [form, setForm] = useState({
     Title:"", NombredelaLLC:"", EtapaActual:"Etapa 1: Evaluación",
-    MontoTarget:"", MontoLevantado:"", FechaLOI:"", FechaCierreEstimado:"",
-    EstadoLLC:"Pendiente", EstadoCuentaBancaria:"Pendiente"
+    MontoTarget:"", MontoLevantado:"", FechaCierreEstimado:"",
+    EstadoLLC:"Pendiente", EstadoCuentaBancaria:"Pendiente",
+    IdLLC:"", BancoProyecto:"", NumeroCuentaProyecto:"", RoutingProyecto:""
   });
 
   function showToast(msg, type='success') {
@@ -2084,7 +2211,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       setProjectHitos(filtered);
 
       // Auto-marcar checkboxes basado en el hito MÁS RECIENTE de cada tipo
-      const approvalMap = { 'BP1': 'bp1_aprobado', 'BP2': 'bp2_aprobado', 'Brochure': 'brochure_aprobado', 'TS - OA': 'ts_proyecto' };
+      const approvalMap = { 'BP1': 'bp1_aprobado', 'BP2': 'bp2_aprobado', 'Brochure One Pager': 'brochure_onepager_aprobado', 'Brochure Full Version': 'brochure_full_aprobado', 'TS - OA': 'ts_proyecto' };
       // Agrupar por tipo y tomar el más reciente
       const latestByType = {};
       filtered.forEach(h => {
@@ -2122,6 +2249,26 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     const hito = hitos[0];
     return hito.fields?.['EstadoAprobaci_x00f3_n'] || hito.fields?.EstadoAprobacion || null;
   }
+
+  function getHitoDetail(tipoHito) {
+    const hitos = projectHitos.filter(h =>
+      (h.fields?.TipoHito || h.fields?.['TipoHito/Value'] || '') === tipoHito
+    );
+    if (hitos.length === 0) return null;
+    hitos.sort((a, b) => Number(b.id) - Number(a.id));
+    const hito = hitos[0];
+    const f = hito.fields || {};
+    return {
+      estado: f['EstadoAprobaci_x00f3_n'] || f.EstadoAprobacion || null,
+      comentario: f.Observacionesocomentarios || f['Observaciones_x0020_o_x0020_comentarios'] || f.Observacionesocomentario || f.ComentarioAprobacion || '',
+      fechaSolicitud: f.FechadeSolicitud || f['FechadeSolicitud'] || '',
+      fechaResolucion: f['FechadeResoluci_x00f3_n'] || f.FechaDeResolucion || '',
+      solicitadoPor: f.SolicitadoPor || f['Solicitadopor'] || '',
+      aprobadoPor: f['Aprobado_x002f__x0020_Completad'] || f.AprobadoPor || '',
+    };
+  }
+
+  const [hitoDetailModal, setHitoDetailModal] = useState(null);
 
   async function triggerApproval(tipoHito) {
     if (!viewingProject) return;
@@ -2242,10 +2389,13 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       EtapaActual: item.fields.EtapaActual || "Etapa 1: Evaluación",
       MontoTarget: item.fields.MontoTarget ? String(item.fields.MontoTarget) : "",
       MontoLevantado: item.fields.MontoLevantado ? String(item.fields.MontoLevantado) : "",
-      FechaLOI: item.fields.FechaLOI ? item.fields.FechaLOI.split('T')[0] : "",
       FechaCierreEstimado: item.fields.FechaCierreEstimado ? item.fields.FechaCierreEstimado.split('T')[0] : "",
       EstadoLLC: item.fields.EstadoLLC || "Pendiente",
-      EstadoCuentaBancaria: item.fields.EstadoCuentaBancaria || "Pendiente"
+      EstadoCuentaBancaria: item.fields.EstadoCuentaBancaria || "Pendiente",
+      IdLLC: item.fields.IdLLC || "",
+      BancoProyecto: item.fields.BancoProyecto || "",
+      NumeroCuentaProyecto: item.fields.NumeroCuentaProyecto || "",
+      RoutingProyecto: item.fields.RoutingProyecto || ""
     });
     // Load participaciones blob
     try {
@@ -2264,7 +2414,29 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   }
 
   function toggleMilestone(milId) {
-    setMilestones(prev => ({ ...prev, [milId]: !prev[milId] }));
+    setMilestones(prev => {
+      const updated = { ...prev, [milId]: !prev[milId] };
+      // Auto-detect and update etapa when milestone changes
+      const newEtapa = detectCurrentEtapa(updated);
+      const currentEtapa = viewingProject?.fields?.EtapaActual;
+      if (newEtapa !== currentEtapa && viewingProject) {
+        setForm(f => ({ ...f, EtapaActual: newEtapa }));
+        setViewingProject(p => ({ ...p, fields: { ...p.fields, EtapaActual: newEtapa } }));
+        // Persist etapa change immediately
+        patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${viewingProject.id}`, {
+          fields: { EtapaActual: newEtapa }
+        }).then(() => {
+          const activoId = viewingProject.fields?.ActivoRelacionadoId;
+          if (activoId) {
+            patchGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}`, {
+              fields: { Estado: newEtapa }
+            }).catch(e => console.warn('Could not update activo:', e.message));
+          }
+          showToast(`📊 Etapa actualizada: ${newEtapa}`);
+        }).catch(e => console.warn('Could not update etapa:', e.message));
+      }
+      return updated;
+    });
   }
 
   async function saveFormFields() {
@@ -2277,11 +2449,13 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           NombredelaLLC: form.NombredelaLLC,
           EtapaActual: form.EtapaActual,
           MontoTarget: form.MontoTarget ? parseFloat(form.MontoTarget) : null,
-          // MontoLevantado se calcula automáticamente desde Fondeo (GFD + FD recibidos)
-          FechaLOI: form.FechaLOI || null,
           FechaCierreEstimado: form.FechaCierreEstimado || null,
           EstadoLLC: form.EstadoLLC,
-          EstadoCuentaBancaria: form.EstadoCuentaBancaria
+          EstadoCuentaBancaria: form.EstadoCuentaBancaria,
+          IdLLC: form.IdLLC || null,
+          BancoProyecto: form.BancoProyecto || null,
+          NumeroCuentaProyecto: form.NumeroCuentaProyecto || null,
+          RoutingProyecto: form.RoutingProyecto || null
         }
       });
       const freshItems = await refreshItems();
@@ -2295,17 +2469,74 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     finally { setSaving(false); }
   }
 
+  // Map section IDs to etapa names
+  const sectionToEtapa = {
+    'e2': 'Etapa 2: LOI & BP',
+    'e3': 'Etapa 3: Onboarding',
+    'e4': 'Etapa 4: Inversionistas',
+    'e5': 'Etapa 5: Due Diligence',
+    'fondeo': 'Etapa 6: Fondeo',
+    'post_closing': 'Etapa 7: Post-Closing',
+  };
+  const etapaOrder = ['e2','e3','e4','e5','fondeo','post_closing'];
+
+  function detectCurrentEtapa(milData) {
+    // Find the highest completed section
+    let highestCompleted = null;
+    for (const secId of etapaOrder) {
+      const section = PROJECT_SECTIONS.find(s => s.id === secId);
+      if (!section) continue;
+      const allDone = section.milestones.every(m => milData[m.id]);
+      if (allDone && section.milestones.length > 0) highestCompleted = secId;
+    }
+    if (!highestCompleted) return 'Etapa 1: Evaluación';
+    // The current etapa is the NEXT one after the highest completed
+    const idx = etapaOrder.indexOf(highestCompleted);
+    if (idx >= etapaOrder.length - 1) return sectionToEtapa[highestCompleted]; // All done, stay at last
+    return sectionToEtapa[etapaOrder[idx + 1]];
+  }
+
   async function saveMilestonesAndNotes() {
     if (!viewingProject) return;
     setSavingMilestones(true);
     try {
       const blob = { ...milestones };
       Object.keys(notes).forEach(k => { blob[`notes_${k}`] = notes[k]; });
+
+      // Auto-detect etapa based on completed sections
+      const newEtapa = detectCurrentEtapa(milestones);
+      const fieldsToUpdate = { Milestones: JSON.stringify(blob) };
+
+      // Update etapa if changed
+      const currentEtapa = viewingProject.fields?.EtapaActual;
+      if (newEtapa !== currentEtapa) {
+        fieldsToUpdate.EtapaActual = newEtapa;
+      }
+
       await patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${viewingProject.id}`, {
-        fields: { Milestones: JSON.stringify(blob) }
+        fields: fieldsToUpdate
       });
+
+      // Also update the associated asset's Estado if etapa changed
+      if (newEtapa !== currentEtapa) {
+        const activoId = viewingProject.fields?.ActivoRelacionadoId;
+        if (activoId) {
+          try {
+            await patchGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}`, {
+              fields: { Estado: newEtapa }
+            });
+          } catch(e) { console.warn('Could not update activo etapa:', e.message); }
+        }
+        setForm(prev => ({ ...prev, EtapaActual: newEtapa }));
+        setViewingProject(prev => ({
+          ...prev, fields: { ...prev.fields, EtapaActual: newEtapa }
+        }));
+      }
+
       await refreshItems();
-      showToast('✅ Hitos y notas guardados');
+      showToast(newEtapa !== currentEtapa
+        ? `✅ Hitos guardados — Etapa actualizada a: ${newEtapa}`
+        : '✅ Hitos y notas guardados');
     } catch(e) {
       showToast('❌ Error al guardar hitos: ' + e.message, 'error');
     }
@@ -2448,6 +2679,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
   async function addProspecto() {
     if (!newProspect.Title || !newProspect.porcentaje) return;
+    if (!newProspect.field_2 || !newProspect.field_3) { showToast('❌ Correo electrónico y teléfono son obligatorios', 'error'); return; }
     setSavingPart(true);
     try {
       // 1. Crear inversionista en SharePoint con estado "Prospecto"
@@ -2462,6 +2694,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           field_6: newProspect.field_6,
           field_7: newProspect.field_7,
           field_9: newProspect.field_9,
+          Broker: newProspect.Broker || '',
           Estado: 'Prospecto',
         }
       });
@@ -2505,7 +2738,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       const res = await callGraph(`/sites/${siteInv}/lists/${LISTS.inversionistas}/items?$expand=fields&$top=500`);
       setAllInversionistas(res.value || []);
       setShowAddInv(false);
-      setNewProspect({ Title:'', field_1:'juridica', field_2:'', field_3:'', field_4:'', field_5:'', field_6:'', field_7:'', field_9:'', porcentaje:'', montoInversion:'', gfdPct:30, finalDepositPct:70, gfd:'', finalDeposit:'' });
+      setNewProspect({ Title:'', field_1:'juridica', field_2:'', field_3:'', field_4:'', field_5:'', field_6:'', field_7:'', field_9:'', Broker:'', porcentaje:'', montoInversion:'', gfdPct:30, finalDepositPct:70, gfd:'', finalDeposit:'' });
       showToast('✅ Prospecto creado y vinculado al proyecto');
     } catch(e) {
       showToast('❌ Error al crear prospecto: ' + e.message, 'error');
@@ -2526,6 +2759,82 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   function updatePartField(idx, field, val) {
     const updated = participaciones.map((p,i) => i===idx ? {...p, [field]:val} : p);
     saveParticipaciones(updated);
+  }
+
+  function openAbonoModal(idx) {
+    setAbonoModal({ idx, part: participaciones[idx] });
+    setNewAbono({ fecha: new Date().toISOString().split('T')[0], monto:'', tipo:'gfd', referencia:'', notas:'' });
+  }
+
+  async function addAbono() {
+    if (!abonoModal || !newAbono.monto || !newAbono.fecha) return;
+    const idx = abonoModal.idx;
+    const abono = {
+      id: Date.now().toString(),
+      fecha: newAbono.fecha,
+      monto: parseFloat(newAbono.monto) || 0,
+      tipo: newAbono.tipo,
+      referencia: newAbono.referencia,
+      notas: newAbono.notas,
+      confirmado: false,
+    };
+    const part = { ...participaciones[idx] };
+    const abonos = [...(part.abonos || []), abono];
+    part.abonos = abonos;
+    // Recalcular montos recibidos basado en abonos
+    const sumaGfd = abonos.filter(a => a.tipo === 'gfd').reduce((s, a) => s + a.monto, 0);
+    const sumaFd = abonos.filter(a => a.tipo === 'fd').reduce((s, a) => s + a.monto, 0);
+    part.gfdRecibido = sumaGfd;
+    part.fdRecibido = sumaFd;
+    const updated = participaciones.map((p, i) => i === idx ? part : p);
+    await saveParticipaciones(updated);
+    setAbonoModal({ idx, part });
+    setNewAbono({ fecha: new Date().toISOString().split('T')[0], monto:'', tipo:'gfd', referencia:'', notas:'' });
+    showToast(`💰 Abono de $${abono.monto.toLocaleString()} registrado`);
+  }
+
+  async function confirmarAbono(abonoId) {
+    const idx = abonoModal.idx;
+    const part = { ...participaciones[idx] };
+    const abonos = (part.abonos || []).map(a => a.id === abonoId ? { ...a, confirmado: true } : a);
+    part.abonos = abonos;
+    const abono = abonos.find(a => a.id === abonoId);
+    const updated = participaciones.map((p, i) => i === idx ? part : p);
+    try {
+      await postGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items`, {
+        fields: {
+          Title: `Confirmación Abono — ${part.nombre} — ${viewingProject.fields?.Title || ''} — $${abono.monto.toLocaleString()}`,
+          TipoHito: 'Confirmar Abono',
+          FechadeSolicitud: new Date().toISOString(),
+          'EstadoAprobaci_x00f3_n': 'Pendiente',
+          ProyectoLookupId: String(viewingProject.id),
+          Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
+          MontoInversi_x00f3_n: abono.monto,
+          Participaci_x00f3_n: Number(part.porcentaje) || 0,
+          MontoGFD: Number(part.gfd) || 0,
+          MontoFinalDeposit: Number(part.finalDeposit) || 0,
+        }
+      });
+      await saveParticipaciones(updated);
+      setAbonoModal({ idx, part });
+      showToast(`✅ Confirmación de abono $${abono.monto.toLocaleString()} enviada a ${part.nombre}`);
+    } catch(err) {
+      showToast('❌ Error: ' + err.message, 'error');
+    }
+  }
+
+  async function eliminarAbono(abonoId) {
+    const idx = abonoModal.idx;
+    const part = { ...participaciones[idx] };
+    part.abonos = (part.abonos || []).filter(a => a.id !== abonoId);
+    const sumaGfd = part.abonos.filter(a => a.tipo === 'gfd').reduce((s, a) => s + a.monto, 0);
+    const sumaFd = part.abonos.filter(a => a.tipo === 'fd').reduce((s, a) => s + a.monto, 0);
+    part.gfdRecibido = sumaGfd;
+    part.fdRecibido = sumaFd;
+    const updated = participaciones.map((p, i) => i === idx ? part : p);
+    await saveParticipaciones(updated);
+    setAbonoModal({ idx, part });
+    showToast('Abono eliminado');
   }
 
   if (viewingProject) {
@@ -2555,6 +2864,53 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           }}>{toast.msg}</div>
         )}
 
+        {/* ── HITO DETAIL MODAL ── */}
+        {hitoDetailModal && (() => {
+          const { tipo, detail } = hitoDetailModal;
+          return (
+            <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999}}
+              onClick={() => setHitoDetailModal(null)}>
+              <div style={{background:'var(--gw-surface)', borderRadius:16, padding:'28px', width:500, maxWidth:'90vw', maxHeight:'80vh', overflow:'auto',
+                border:'1px solid var(--gw-border)', boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}
+                onClick={e => e.stopPropagation()}>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18}}>
+                  <div style={{fontSize:16, fontWeight:700, color:'var(--gw-heading)'}}>📋 Detalle de Aprobación — {tipo}</div>
+                  <button onClick={() => setHitoDetailModal(null)} style={{background:'none', border:'none', fontSize:18, cursor:'pointer', color:'var(--gw-muted)'}}>✕</button>
+                </div>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16}}>
+                  <div style={{background:'var(--gw-page-bg)', borderRadius:10, padding:'12px'}}>
+                    <div style={{fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:4}}>Estado</div>
+                    <div style={{fontSize:14, fontWeight:700, color: detail.estado === 'Aprobado' ? 'var(--gw-success)' : detail.estado === 'Rechazado' ? 'var(--gw-danger)' : 'var(--gw-warning)'}}>
+                      {detail.estado === 'Aprobado' ? '✅' : detail.estado === 'Rechazado' ? '❌' : '⏳'} {detail.estado || '—'}
+                    </div>
+                  </div>
+                  <div style={{background:'var(--gw-page-bg)', borderRadius:10, padding:'12px'}}>
+                    <div style={{fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:4}}>Aprobado / Resuelto por</div>
+                    <div style={{fontSize:13, fontWeight:600, color:'var(--gw-heading)'}}>{detail.aprobadoPor || '—'}</div>
+                  </div>
+                  <div style={{background:'var(--gw-page-bg)', borderRadius:10, padding:'12px'}}>
+                    <div style={{fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:4}}>Fecha solicitud</div>
+                    <div style={{fontSize:13, color:'var(--gw-body)'}}>{detail.fechaSolicitud ? new Date(detail.fechaSolicitud).toLocaleDateString('es-CO') : '—'}</div>
+                  </div>
+                  <div style={{background:'var(--gw-page-bg)', borderRadius:10, padding:'12px'}}>
+                    <div style={{fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:4}}>Fecha resolución</div>
+                    <div style={{fontSize:13, color:'var(--gw-body)'}}>{detail.fechaResolucion ? new Date(detail.fechaResolucion).toLocaleDateString('es-CO') : '—'}</div>
+                  </div>
+                </div>
+                <div style={{background:'var(--gw-page-bg)', borderRadius:10, padding:'14px', border:'1px solid var(--gw-border)'}}>
+                  <div style={{fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:6}}>Comentarios / Observaciones</div>
+                  <div style={{fontSize:13, color:'var(--gw-body)', lineHeight:1.6, whiteSpace:'pre-wrap'}}>
+                    {detail.comentario || 'Sin comentarios registrados. Los comentarios aparecerán aquí cuando el aprobador responda la solicitud.'}
+                  </div>
+                </div>
+                <div style={{display:'flex', justifyContent:'flex-end', marginTop:16}}>
+                  <button onClick={() => setHitoDetailModal(null)} style={{padding:'8px 20px', background:'var(--gw-border)', border:'none', borderRadius:8, cursor:'pointer', fontWeight:600, color:'var(--gw-body)', fontSize:13}}>Cerrar</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── Fixed header wrapper: header + tabs combined ── */}
         <div style={{flexShrink:0, background:'var(--gw-card)', boxShadow:'0 2px 16px rgba(0,0,0,0.10)', zIndex:10}}>
 
@@ -2569,6 +2925,9 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
             padding:'6px 14px', cursor:'pointer', color:'var(--gw-body)',
             fontSize:13, display:'flex', alignItems:'center', gap:6, flexShrink:0
           }}>← Proyectos</button>
+          <button onClick={async () => { showToast('🔄 Actualizando...', 'info'); await refreshItems(); const fresh = items.find(i => i.id === viewingProject.id); if (fresh) { setViewingProject(fresh); openProject(fresh); } showToast('✅ Datos actualizados'); }}
+            style={{background:'none', border:'1px solid var(--gw-border)', borderRadius:8, padding:'6px 12px', cursor:'pointer', color:'var(--gw-muted)', fontSize:13, flexShrink:0}}
+            title="Actualizar datos del proyecto">🔄</button>
 
           <div style={{flex:1, minWidth:150}}>
             <div style={{fontSize:18, fontWeight:700, color:'var(--gw-heading)', lineHeight:1.2}}>{p.fields?.Title}</div>
@@ -2725,13 +3084,16 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                   {[
                     {l:'Nombre del Proyecto', v:form.Title},
                     {l:'LLC', v:form.NombredelaLLC},
+                    {l:'ID LLC / EIN', v:form.IdLLC || '—'},
                     {l:'Etapa Actual', v:form.EtapaActual},
                     {l:'Monto Target', v:fmtMoney(form.MontoTarget)},
                     {l:'Monto Levantado', v:fmtMoney(levantado)},
-                    {l:'Fecha LOI', v:fmtDate(form.FechaLOI)},
                     {l:'Fecha Cierre Estimado', v:fmtDate(form.FechaCierreEstimado)},
                     {l:'Estado LLC', v:form.EstadoLLC},
                     {l:'Estado Cuenta Bancaria', v:form.EstadoCuentaBancaria},
+                    {l:'Banco del Proyecto', v:form.BancoProyecto || '—'},
+                    {l:'Número de Cuenta', v:form.NumeroCuentaProyecto || '—'},
+                    {l:'Routing Number', v:form.RoutingProyecto || '—'},
                   ].map(({l,v}) => (
                     <div key={l} style={{
                       background:'var(--gw-card)', border:'1px solid var(--gw-border)',
@@ -2795,7 +3157,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                   <div className="form-group">
                     <label className="form-label">Etapa Actual</label>
                     <select className="form-select" value={form.EtapaActual} onChange={e => setForm({...form, EtapaActual: e.target.value})}>
-                      {["Etapa 1: Evaluación","Etapa 2: Negociación","Etapa 3: Due Diligence","Etapa 4: Funding","Etapa 5: Cierre","Etapa 6: Post Closing"].map(e => <option key={e}>{e}</option>)}
+                      {["Etapa 1: Evaluación","Etapa 2: LOI & BP","Etapa 3: Onboarding","Etapa 4: Inversionistas","Etapa 5: Due Diligence","Etapa 6: Fondeo","Etapa 7: Post-Closing"].map(e => <option key={e}>{e}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
@@ -2807,8 +3169,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                     <input className="form-input" type="number" value={form.MontoLevantado} readOnly style={{background:'var(--gw-page-bg)', cursor:'default', opacity:0.8}} title="Se calcula automáticamente como la suma de GFD Recibido + FD Recibido de todos los inversionistas" />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Fecha LOI</label>
-                    <input className="form-input" type="date" value={form.FechaLOI} onChange={e => setForm({...form, FechaLOI: e.target.value})} />
+                    <label className="form-label">ID LLC / EIN</label>
+                    <input className="form-input" value={form.IdLLC||''} onChange={e => setForm({...form, IdLLC: e.target.value})} />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Fecha Cierre Estimado</label>
@@ -2825,6 +3187,18 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                     <select className="form-select" value={form.EstadoCuentaBancaria} onChange={e => setForm({...form, EstadoCuentaBancaria: e.target.value})}>
                       {["Pendiente","En proceso","Activa"].map(e => <option key={e}>{e}</option>)}
                     </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Banco del Proyecto</label>
+                    <input className="form-input" value={form.BancoProyecto||''} onChange={e => setForm({...form, BancoProyecto: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Número de Cuenta</label>
+                    <input className="form-input" value={form.NumeroCuentaProyecto||''} onChange={e => setForm({...form, NumeroCuentaProyecto: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Routing Number</label>
+                    <input className="form-input" value={form.RoutingProyecto||''} onChange={e => setForm({...form, RoutingProyecto: e.target.value})} />
                   </div>
                 </div>
               )}
@@ -2940,24 +3314,45 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
                       {/* Approval button */}
                       {m.approval && (() => {
-                        const tipoMap = { bp1_aprobado: 'BP1', bp2_aprobado: 'BP2', brochure_aprobado: 'Brochure', ts_proyecto: 'TS - OA' };
+                        const tipoMap = { bp1_aprobado: 'BP1', bp2_aprobado: 'BP2', brochure_onepager_aprobado: 'Brochure One Pager', brochure_full_aprobado: 'Brochure Full Version', ts_proyecto: 'TS - OA' };
                         const tipo = tipoMap[m.id] || null;
                         const hitoStatus = tipo ? getHitoStatus(tipo) : null;
+                        const detail = tipo ? getHitoDetail(tipo) : null;
                         const isRequesting = requestingApproval === tipo;
 
                         if (hitoStatus === 'Aprobado') return (
-                          <span style={{padding:'6px 12px', background:'rgba(46,213,115,0.12)', color:'var(--gw-success)',
-                            border:'1px solid rgba(46,213,115,0.3)', borderRadius:8, fontSize:11, fontWeight:700, whiteSpace:'nowrap'}}>
-                            ✅ Aprobado
-                          </span>
+                          <div style={{display:'flex', gap:6, alignItems:'center'}}>
+                            <span style={{padding:'6px 12px', background:'rgba(46,213,115,0.12)', color:'var(--gw-success)',
+                              border:'1px solid rgba(46,213,115,0.3)', borderRadius:8, fontSize:11, fontWeight:700, whiteSpace:'nowrap'}}>
+                              ✅ Aprobado
+                            </span>
+                            {detail && (
+                              <button onClick={e => { e.stopPropagation(); setHitoDetailModal({ tipo, detail }); }}
+                                style={{padding:'4px 8px', background:'none', border:'1px solid var(--gw-border)', borderRadius:6, fontSize:11, cursor:'pointer',
+                                  color: detail.comentario ? 'var(--gw-cyan)' : 'var(--gw-muted)', transition:'all 0.2s'}}
+                                title="Ver detalle de la aprobación">
+                                💬{detail.comentario ? ' ●' : ''}
+                              </button>
+                            )}
+                          </div>
                         );
                         if (hitoStatus === 'Rechazado') return (
-                          <button onClick={e => { e.stopPropagation(); tipo && triggerApproval(tipo); }}
-                            style={{padding:'7px 14px', background:'none', border:'1px solid var(--gw-danger)',
-                              borderRadius:8, fontSize:11, cursor:'pointer', color:'var(--gw-danger)',
-                              fontWeight:600, whiteSpace:'nowrap', flexShrink:0}}>
-                            ❌ Rechazado — Reintentar
-                          </button>
+                          <div style={{display:'flex', gap:6, alignItems:'center'}}>
+                            <button onClick={e => { e.stopPropagation(); tipo && triggerApproval(tipo); }}
+                              style={{padding:'7px 14px', background:'none', border:'1px solid var(--gw-danger)',
+                                borderRadius:8, fontSize:11, cursor:'pointer', color:'var(--gw-danger)',
+                                fontWeight:600, whiteSpace:'nowrap', flexShrink:0}}>
+                              ❌ Rechazado — Reintentar
+                            </button>
+                            {detail && (
+                              <button onClick={e => { e.stopPropagation(); setHitoDetailModal({ tipo, detail }); }}
+                                style={{padding:'4px 8px', background:'none', border:'1px solid rgba(232,80,80,0.3)', borderRadius:6, fontSize:11, cursor:'pointer',
+                                  color: detail.comentario ? 'var(--gw-danger)' : 'var(--gw-muted)', transition:'all 0.2s'}}
+                                title="Ver comentarios del rechazo">
+                                💬{detail.comentario ? ' ●' : ''}
+                              </button>
+                            )}
+                          </div>
                         );
                         if (hitoStatus === 'Pendiente' || hitoStatus === 'En proceso') return (
                           <span style={{padding:'6px 12px', background:'rgba(232,160,48,0.12)', color:'var(--gw-warning)',
@@ -3029,7 +3424,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                 // E4 columns: Inversionista, %, Monto, Estado, Notificar, Acciones
                 // E5 columns: Inversionista, %, Due Diligence, TS, PPM, OA
                 // Fondeo columns: Inversionista, Monto USD, Fecha GFD, GFD Proyectado, GFD Recibido, Fecha FD, FD Esperado, FD Recibido, Acción
-                return (
+                return (<>
                   <div style={{marginTop:28}}>
                     {/* Header */}
                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
@@ -3144,6 +3539,18 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 </div>
                               </div>
                             )}
+                            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14}}>
+                              <div>
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Fecha Cierre Negociación</div>
+                                <input type="date" value={newPart.fechaCierreNeg||''} onChange={e => setNewPart(p=>({...p,fechaCierreNeg:e.target.value}))}
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                              </div>
+                              <div>
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Observaciones</div>
+                                <input value={newPart.observaciones||''} onChange={e => setNewPart(p=>({...p,observaciones:e.target.value}))} placeholder="Notas sobre la vinculación"
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                              </div>
+                            </div>
                             <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
                               <button onClick={() => { setShowAddInv(false); setNewPart({invId:'',nombre:'',tipo:'natural',porcentaje:'',aporteEstado:'pendiente'}); }}
                                 style={{padding:'8px 16px', background:'none', border:'1px solid var(--gw-border)', borderRadius:8, fontSize:13, cursor:'pointer', color:'var(--gw-body)'}}>Cancelar</button>
@@ -3158,7 +3565,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                         {addInvMode === 'new' && (
                           <div>
                             <div style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)', marginBottom:10}}>Información de Contacto</div>
-                            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:14}}>
+                            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:12, marginBottom:14}}>
                               <div>
                                 <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Nombre / Razón Social *</div>
                                 <input value={newProspect.Title} onChange={e => setNewProspect(p=>({...p, Title:e.target.value}))} placeholder="Nombre de la empresa o persona"
@@ -3177,17 +3584,22 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                   <option value="natural">Persona Natural</option>
                                 </select>
                               </div>
+                              <div>
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Broker / Referente</div>
+                                <input value={newProspect.Broker||''} onChange={e => setNewProspect(p=>({...p, Broker:e.target.value}))} placeholder="Nombre del broker"
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                              </div>
                             </div>
                             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14}}>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Correo Electrónico</div>
-                                <input type="email" value={newProspect.field_2} onChange={e => setNewProspect(p=>({...p, field_2:e.target.value}))} placeholder="correo@empresa.com"
-                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Correo Electrónico *</div>
+                                <input type="email" value={newProspect.field_2} onChange={e => setNewProspect(p=>({...p, field_2:e.target.value}))} placeholder="correo@empresa.com" required
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:`1px solid ${!newProspect.field_2 ? 'var(--gw-warning)' : 'var(--gw-border)'}`, background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                               </div>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Teléfono</div>
-                                <input value={newProspect.field_3} onChange={e => setNewProspect(p=>({...p, field_3:e.target.value}))} placeholder="+1 (555) 123-4567"
-                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Teléfono *</div>
+                                <input value={newProspect.field_3} onChange={e => setNewProspect(p=>({...p, field_3:e.target.value}))} placeholder="+1 (555) 123-4567" required
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:`1px solid ${!newProspect.field_3 ? 'var(--gw-warning)' : 'var(--gw-border)'}`, background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                               </div>
                             </div>
                             <div style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)', marginBottom:10, marginTop:6}}>Dirección</div>
@@ -3256,7 +3668,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                               </div>
                             )}
                             <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
-                              <button onClick={() => { setShowAddInv(false); setNewProspect({Title:'',field_1:'juridica',field_2:'',field_3:'',field_4:'',field_5:'',field_6:'',field_7:'',field_9:'',porcentaje:'',montoInversion:'',gfdPct:30,finalDepositPct:70,gfd:'',finalDeposit:''}); }}
+                              <button onClick={() => { setShowAddInv(false); setNewProspect({Title:'',field_1:'juridica',field_2:'',field_3:'',field_4:'',field_5:'',field_6:'',field_7:'',field_9:'',Broker:'',porcentaje:'',montoInversion:'',gfdPct:30,finalDepositPct:70,gfd:'',finalDeposit:''}); }}
                                 style={{padding:'8px 16px', background:'none', border:'1px solid var(--gw-border)', borderRadius:8, fontSize:13, cursor:'pointer', color:'var(--gw-body)'}}>Cancelar</button>
                               <button onClick={addProspecto} disabled={!newProspect.Title || !newProspect.porcentaje || savingPart}
                                 style={{padding:'8px 18px', background:'var(--gw-success)', color:'white', border:'none', borderRadius:8, fontSize:13, cursor:'pointer', fontWeight:600, opacity:(!newProspect.Title||!newProspect.porcentaje)?0.5:1}}>
@@ -3295,11 +3707,11 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                               {isE5 && <>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Due Diligence</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>TS</th>
-                                <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>PPM</th>
-                                <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>OA</th>
+                                <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>SA</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Acción</th>
                               </>}
                               {isFondeo && <>
+                                <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Broker</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Monto USD</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Fecha GFD</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>GFD Proyectado</th>
@@ -3400,50 +3812,82 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                       options={[{value:'pendiente',label:'Pendiente'},{value:'enviado',label:'Enviado'},{value:'firmado',label:'Firmado'}]} />
                                   </td>
                                   <td style={{padding:'10px 12px', textAlign:'center'}}>
-                                    <StatusSelect value={part.ppmEstado} field="ppmEstado" idx={idx}
+                                    <StatusSelect value={part.saEstado || part.ppmEstado} field="saEstado" idx={idx}
                                       options={[{value:'pendiente',label:'Pendiente'},{value:'enviado',label:'Enviado'},{value:'firmado',label:'Firmado'}]} />
                                   </td>
+                                  {/* Envío SA + Envío TS */}
                                   <td style={{padding:'10px 12px', textAlign:'center'}}>
-                                    <StatusSelect value={part.oaEstado} field="oaEstado" idx={idx}
-                                      options={[{value:'pendiente',label:'Pendiente'},{value:'enviado',label:'Enviado'},{value:'firmado',label:'Firmado'}]} />
-                                  </td>
-                                  {/* Envío SA */}
-                                  <td style={{padding:'10px 12px', textAlign:'center'}}>
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          await postGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items`, {
-                                            fields: {
-                                              Title: `Envío SA — ${part.nombre} — ${viewingProject.fields?.Title || ''}`,
-                                              TipoHito: 'Envio SA',
-                                              FechadeSolicitud: new Date().toISOString(),
-                                              'EstadoAprobaci_x00f3_n': 'Pendiente',
-                                              ProyectoLookupId: String(viewingProject.id),
-                                              Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
-                                              MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
-                                              Participaci_x00f3_n: Number(part.porcentaje) || 0,
-                                              MontoGFD: Number(part.gfd) || 0,
-                                              MontoFinalDeposit: Number(part.finalDeposit) || 0,
-                                            }
-                                          });
-                                          showToast(`📄 Envío SA solicitado para ${part.nombre}`);
-                                        } catch(err) {
-                                          showToast('❌ Error: ' + err.message, 'error');
-                                        }
-                                      }}
-                                      style={{
-                                        padding:'5px 12px', background:'rgba(107,45,164,0.1)', border:'1px solid rgba(107,45,164,0.3)',
-                                        borderRadius:8, fontSize:11, cursor:'pointer', color:'#6B2DA4', fontWeight:600, transition:'all 0.2s',
-                                        display:'inline-flex', alignItems:'center', gap:4, whiteSpace:'nowrap'
-                                      }}
-                                      onMouseEnter={e => { e.currentTarget.style.background='rgba(107,45,164,0.2)'; }}
-                                      onMouseLeave={e => { e.currentTarget.style.background='rgba(107,45,164,0.1)'; }}
-                                    >📄 Envío SA</button>
+                                    <div style={{display:'flex', flexDirection:'column', gap:4, alignItems:'center'}}>
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            await postGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items`, {
+                                              fields: {
+                                                Title: `Envío SA — ${part.nombre} — ${viewingProject.fields?.Title || ''}`,
+                                                TipoHito: 'Envio SA',
+                                                FechadeSolicitud: new Date().toISOString(),
+                                                'EstadoAprobaci_x00f3_n': 'Pendiente',
+                                                ProyectoLookupId: String(viewingProject.id),
+                                                Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
+                                                MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
+                                                Participaci_x00f3_n: Number(part.porcentaje) || 0,
+                                                MontoGFD: Number(part.gfd) || 0,
+                                                MontoFinalDeposit: Number(part.finalDeposit) || 0,
+                                              }
+                                            });
+                                            showToast(`📄 Envío SA solicitado para ${part.nombre}`);
+                                          } catch(err) {
+                                            showToast('❌ Error: ' + err.message, 'error');
+                                          }
+                                        }}
+                                        style={{
+                                          padding:'4px 10px', background:'rgba(107,45,164,0.1)', border:'1px solid rgba(107,45,164,0.3)',
+                                          borderRadius:8, fontSize:10, cursor:'pointer', color:'#6B2DA4', fontWeight:600, transition:'all 0.2s',
+                                          display:'inline-flex', alignItems:'center', gap:3, whiteSpace:'nowrap'
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.background='rgba(107,45,164,0.2)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background='rgba(107,45,164,0.1)'; }}
+                                      >📄 Envío SA</button>
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            await postGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items`, {
+                                              fields: {
+                                                Title: `Envío TS — ${part.nombre} — ${viewingProject.fields?.Title || ''}`,
+                                                TipoHito: 'Envio TS',
+                                                FechadeSolicitud: new Date().toISOString(),
+                                                'EstadoAprobaci_x00f3_n': 'Pendiente',
+                                                ProyectoLookupId: String(viewingProject.id),
+                                                Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
+                                                MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
+                                                Participaci_x00f3_n: Number(part.porcentaje) || 0,
+                                                MontoGFD: Number(part.gfd) || 0,
+                                                MontoFinalDeposit: Number(part.finalDeposit) || 0,
+                                              }
+                                            });
+                                            showToast(`📋 Envío TS solicitado para ${part.nombre}`);
+                                          } catch(err) {
+                                            showToast('❌ Error: ' + err.message, 'error');
+                                          }
+                                        }}
+                                        style={{
+                                          padding:'4px 10px', background:'rgba(26,143,168,0.1)', border:'1px solid rgba(26,143,168,0.3)',
+                                          borderRadius:8, fontSize:10, cursor:'pointer', color:'var(--gw-cyan)', fontWeight:600, transition:'all 0.2s',
+                                          display:'inline-flex', alignItems:'center', gap:3, whiteSpace:'nowrap'
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.background='rgba(26,143,168,0.2)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background='rgba(26,143,168,0.1)'; }}
+                                      >📋 Envío TS</button>
+                                    </div>
                                   </td>
                                 </>}
 
                                 {/* ── Fondeo columns ── */}
                                 {isFondeo && <>
+                                  {/* Broker */}
+                                  <td style={{padding:'10px 12px', textAlign:'center', fontSize:12, color:'var(--gw-body)'}}>
+                                    {(() => { const inv = allInversionistas.find(i => i.id === part.invId); return inv?.fields?.Broker || '—'; })()}
+                                  </td>
                                   {/* Monto USD */}
                                   <td style={{padding:'10px 12px', textAlign:'center', fontSize:13, fontWeight:600, color:'var(--gw-heading)'}}>
                                     {part.montoInversion ? `$${Number(part.montoInversion).toLocaleString()}` : '—'}
@@ -3459,8 +3903,17 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                   </td>
                                   {/* GFD Recibido */}
                                   <td style={{padding:'10px 8px', textAlign:'center'}}>
-                                    <input type="number" min="0" step="100" value={part.gfdRecibido || ''} onChange={e => updatePartField(idx, 'gfdRecibido', e.target.value)}
-                                      placeholder="0" style={{padding:'4px 6px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:12, width:90, textAlign:'center'}} />
+                                    {(part.abonos && part.abonos.length > 0) ? (
+                                      <div>
+                                        <div style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)'}}>${Number(part.gfdRecibido||0).toLocaleString()}</div>
+                                        <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:5, marginTop:3, width:80, margin:'3px auto 0'}}>
+                                          <div style={{width:`${Math.min(100, part.gfd > 0 ? ((part.gfdRecibido||0)/part.gfd*100) : 0)}%`, height:'100%', borderRadius:99, background: (part.gfdRecibido||0) >= part.gfd ? 'var(--gw-success)' : 'var(--gw-cyan)', transition:'width 0.4s'}} />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <input type="number" min="0" step="100" value={part.gfdRecibido || ''} onChange={e => updatePartField(idx, 'gfdRecibido', e.target.value)}
+                                        placeholder="0" style={{padding:'4px 6px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:12, width:90, textAlign:'center'}} />
+                                    )}
                                   </td>
                                   {/* Fecha Final Deposit */}
                                   <td style={{padding:'10px 8px', textAlign:'center'}}>
@@ -3473,12 +3926,30 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                   </td>
                                   {/* FD Recibido */}
                                   <td style={{padding:'10px 8px', textAlign:'center'}}>
-                                    <input type="number" min="0" step="100" value={part.fdRecibido || ''} onChange={e => updatePartField(idx, 'fdRecibido', e.target.value)}
-                                      placeholder="0" style={{padding:'4px 6px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:12, width:90, textAlign:'center'}} />
+                                    {(part.abonos && part.abonos.length > 0) ? (
+                                      <div>
+                                        <div style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)'}}>${Number(part.fdRecibido||0).toLocaleString()}</div>
+                                        <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:5, marginTop:3, width:80, margin:'3px auto 0'}}>
+                                          <div style={{width:`${Math.min(100, part.finalDeposit > 0 ? ((part.fdRecibido||0)/part.finalDeposit*100) : 0)}%`, height:'100%', borderRadius:99, background: (part.fdRecibido||0) >= part.finalDeposit ? 'var(--gw-success)' : 'var(--gw-cyan)', transition:'width 0.4s'}} />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <input type="number" min="0" step="100" value={part.fdRecibido || ''} onChange={e => updatePartField(idx, 'fdRecibido', e.target.value)}
+                                        placeholder="0" style={{padding:'4px 6px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:12, width:90, textAlign:'center'}} />
+                                    )}
                                   </td>
-                                  {/* Acción: Solicitar Pago + Confirmar Pago */}
+                                  {/* Acción: Abonos + Solicitar Pago + Confirmar Pago */}
                                   <td style={{padding:'10px 8px', textAlign:'center'}}>
                                     <div style={{display:'flex', flexDirection:'column', gap:4, alignItems:'center'}}>
+                                      <button onClick={() => openAbonoModal(idx)}
+                                        style={{
+                                          padding:'4px 10px', background:'rgba(26,143,168,0.1)', border:'1px solid rgba(26,143,168,0.3)',
+                                          borderRadius:8, fontSize:10, cursor:'pointer', color:'var(--gw-cyan)', fontWeight:600, transition:'all 0.2s',
+                                          display:'inline-flex', alignItems:'center', gap:3, whiteSpace:'nowrap'
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.background='rgba(26,143,168,0.2)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background='rgba(26,143,168,0.1)'; }}
+                                      >💳 Abonos{(part.abonos||[]).length > 0 ? ` (${(part.abonos||[]).length})` : ''}</button>
                                       <button
                                         onClick={async () => {
                                           try {
@@ -3564,6 +4035,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 <td style={{padding:'10px 12px', fontSize:12, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase'}}>TOTAL</td>
                                 {isFondeo ? (
                                   <>
+                                    <td />
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:13, fontWeight:800, color:'var(--gw-heading)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.montoInversion)||0),0).toLocaleString()}
                                     </td>
@@ -3605,8 +4077,164 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                         </table>
                       </div>
                     )}
-                  </div>
-                );
+
+                  {/* ── ABONOS MODAL ── */}
+                  {abonoModal && (() => {
+                    const part = participaciones[abonoModal.idx] || {};
+                    const abonos = part.abonos || [];
+                    const abonosGfd = abonos.filter(a => a.tipo === 'gfd');
+                    const abonosFd = abonos.filter(a => a.tipo === 'fd');
+                    const sumaGfd = abonosGfd.reduce((s, a) => s + a.monto, 0);
+                    const sumaFd = abonosFd.reduce((s, a) => s + a.monto, 0);
+                    const targetGfd = Number(part.gfd) || 0;
+                    const targetFd = Number(part.finalDeposit) || 0;
+                    const pctGfd = targetGfd > 0 ? Math.min(100, Math.round(sumaGfd / targetGfd * 100)) : 0;
+                    const pctFd = targetFd > 0 ? Math.min(100, Math.round(sumaFd / targetFd * 100)) : 0;
+                    return (
+                      <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999}}
+                        onClick={() => setAbonoModal(null)}>
+                        <div style={{background:'var(--gw-surface)', borderRadius:16, padding:'28px', width:700, maxWidth:'95vw', maxHeight:'85vh', overflow:'auto',
+                          border:'1px solid var(--gw-border)', boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}
+                          onClick={e => e.stopPropagation()}>
+
+                          {/* Header */}
+                          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20}}>
+                            <div>
+                              <div style={{fontSize:17, fontWeight:700, color:'var(--gw-heading)'}}>💳 Registro de Abonos</div>
+                              <div style={{fontSize:13, color:'var(--gw-muted)', marginTop:2}}>{part.nombre} — {viewingProject?.fields?.Title || ''}</div>
+                            </div>
+                            <button onClick={() => setAbonoModal(null)} style={{background:'none', border:'none', fontSize:18, cursor:'pointer', color:'var(--gw-muted)', padding:'4px'}}>✕</button>
+                          </div>
+
+                          {/* Progress summary */}
+                          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:22}}>
+                            <div style={{background:'var(--gw-page-bg)', borderRadius:12, padding:'14px 16px', border:'1px solid var(--gw-border)'}}>
+                              <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:6}}>Good Faith Deposit</div>
+                              <div style={{fontSize:20, fontWeight:800, color:'var(--gw-heading)'}}>${sumaGfd.toLocaleString()} <span style={{fontSize:13, fontWeight:500, color:'var(--gw-muted)'}}>/ ${targetGfd.toLocaleString()}</span></div>
+                              <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:6, marginTop:6}}>
+                                <div style={{width:`${pctGfd}%`, height:'100%', borderRadius:99, background: pctGfd >= 100 ? 'var(--gw-success)' : 'var(--gw-cyan)', transition:'width 0.4s'}} />
+                              </div>
+                              <div style={{fontSize:11, color: pctGfd >= 100 ? 'var(--gw-success)' : 'var(--gw-muted)', marginTop:4, fontWeight:600}}>{pctGfd}% — {abonosGfd.length} abono{abonosGfd.length !== 1 ? 's' : ''}</div>
+                            </div>
+                            <div style={{background:'var(--gw-page-bg)', borderRadius:12, padding:'14px 16px', border:'1px solid var(--gw-border)'}}>
+                              <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:6}}>Final Deposit</div>
+                              <div style={{fontSize:20, fontWeight:800, color:'var(--gw-heading)'}}>${sumaFd.toLocaleString()} <span style={{fontSize:13, fontWeight:500, color:'var(--gw-muted)'}}>/ ${targetFd.toLocaleString()}</span></div>
+                              <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:6, marginTop:6}}>
+                                <div style={{width:`${pctFd}%`, height:'100%', borderRadius:99, background: pctFd >= 100 ? 'var(--gw-success)' : 'var(--gw-cyan)', transition:'width 0.4s'}} />
+                              </div>
+                              <div style={{fontSize:11, color: pctFd >= 100 ? 'var(--gw-success)' : 'var(--gw-muted)', marginTop:4, fontWeight:600}}>{pctFd}% — {abonosFd.length} abono{abonosFd.length !== 1 ? 's' : ''}</div>
+                            </div>
+                          </div>
+
+                          {/* New abono form */}
+                          <div style={{background:'rgba(26,143,168,0.06)', borderRadius:12, padding:'16px', border:'1px solid rgba(26,143,168,0.15)', marginBottom:20}}>
+                            <div style={{fontSize:13, fontWeight:700, color:'var(--gw-heading)', marginBottom:10}}>Registrar nuevo abono</div>
+                            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:10, marginBottom:10}}>
+                              <div>
+                                <div style={{fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:4}}>Fecha *</div>
+                                <input type="date" value={newAbono.fecha} onChange={e => setNewAbono(p=>({...p,fecha:e.target.value}))}
+                                  style={{width:'100%', padding:'6px 8px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-surface)', color:'var(--gw-body)', fontSize:12, boxSizing:'border-box'}} />
+                              </div>
+                              <div>
+                                <div style={{fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:4}}>Monto (USD) *</div>
+                                <input type="number" min="0" step="100" value={newAbono.monto} onChange={e => setNewAbono(p=>({...p,monto:e.target.value}))} placeholder="0"
+                                  style={{width:'100%', padding:'6px 8px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-surface)', color:'var(--gw-body)', fontSize:12, boxSizing:'border-box'}} />
+                              </div>
+                              <div>
+                                <div style={{fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:4}}>Aplica a</div>
+                                <select value={newAbono.tipo} onChange={e => setNewAbono(p=>({...p,tipo:e.target.value}))}
+                                  style={{width:'100%', padding:'6px 8px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-surface)', color:'var(--gw-body)', fontSize:12}}>
+                                  <option value="gfd">Good Faith Deposit</option>
+                                  <option value="fd">Final Deposit</option>
+                                </select>
+                              </div>
+                              <div>
+                                <div style={{fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:4}}>Referencia</div>
+                                <input value={newAbono.referencia} onChange={e => setNewAbono(p=>({...p,referencia:e.target.value}))} placeholder="# transferencia"
+                                  style={{width:'100%', padding:'6px 8px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-surface)', color:'var(--gw-body)', fontSize:12, boxSizing:'border-box'}} />
+                              </div>
+                            </div>
+                            <div style={{display:'flex', gap:10, alignItems:'flex-end'}}>
+                              <div style={{flex:1}}>
+                                <div style={{fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', marginBottom:4}}>Notas</div>
+                                <input value={newAbono.notas} onChange={e => setNewAbono(p=>({...p,notas:e.target.value}))} placeholder="Observaciones opcionales"
+                                  style={{width:'100%', padding:'6px 8px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-surface)', color:'var(--gw-body)', fontSize:12, boxSizing:'border-box'}} />
+                              </div>
+                              <button onClick={addAbono} disabled={!newAbono.monto || !newAbono.fecha}
+                                style={{padding:'6px 16px', background:'var(--gw-cyan)', color:'white', border:'none', borderRadius:8, fontSize:12, cursor:'pointer', fontWeight:700, whiteSpace:'nowrap', opacity:(!newAbono.monto||!newAbono.fecha)?0.5:1}}>
+                                + Agregar
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Abonos history table */}
+                          {abonos.length === 0 ? (
+                            <div style={{textAlign:'center', padding:'24px', color:'var(--gw-muted)', fontSize:13}}>
+                              No hay abonos registrados. Este inversionista usa pagos directos (GFD + Final Deposit).
+                            </div>
+                          ) : (
+                            <div style={{borderRadius:10, border:'1px solid var(--gw-border)', overflow:'hidden'}}>
+                              <table style={{width:'100%', borderCollapse:'collapse'}}>
+                                <thead>
+                                  <tr style={{background:'var(--gw-page-bg)'}}>
+                                    <th style={{padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase'}}>Fecha</th>
+                                    <th style={{padding:'8px 10px', textAlign:'center', fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase'}}>Monto</th>
+                                    <th style={{padding:'8px 10px', textAlign:'center', fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase'}}>Aplica a</th>
+                                    <th style={{padding:'8px 10px', textAlign:'left', fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase'}}>Referencia</th>
+                                    <th style={{padding:'8px 10px', textAlign:'center', fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase'}}>Estado</th>
+                                    <th style={{padding:'8px 10px', textAlign:'center', fontSize:10, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase'}}>Acciones</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {abonos.sort((a,b) => a.fecha.localeCompare(b.fecha)).map(abono => (
+                                    <tr key={abono.id} style={{borderTop:'1px solid var(--gw-border)'}}>
+                                      <td style={{padding:'8px 10px', fontSize:12, color:'var(--gw-body)'}}>{abono.fecha}</td>
+                                      <td style={{padding:'8px 10px', textAlign:'center', fontSize:12, fontWeight:700, color:'var(--gw-heading)'}}>${abono.monto.toLocaleString()}</td>
+                                      <td style={{padding:'8px 10px', textAlign:'center'}}>
+                                        <span style={{padding:'2px 8px', borderRadius:99, fontSize:10, fontWeight:700,
+                                          background: abono.tipo === 'gfd' ? 'rgba(26,143,168,0.12)' : 'rgba(200,150,12,0.12)',
+                                          color: abono.tipo === 'gfd' ? 'var(--gw-cyan)' : '#C8960C'
+                                        }}>{abono.tipo === 'gfd' ? 'GFD' : 'Final Dep.'}</span>
+                                      </td>
+                                      <td style={{padding:'8px 10px', fontSize:11, color:'var(--gw-muted)'}}>{abono.referencia || '—'}{abono.notas ? ` · ${abono.notas}` : ''}</td>
+                                      <td style={{padding:'8px 10px', textAlign:'center'}}>
+                                        {abono.confirmado
+                                          ? <span style={{padding:'2px 8px', borderRadius:99, fontSize:10, fontWeight:700, background:'rgba(46,204,138,0.12)', color:'var(--gw-success)'}}>Confirmado</span>
+                                          : <span style={{padding:'2px 8px', borderRadius:99, fontSize:10, fontWeight:700, background:'rgba(232,160,48,0.12)', color:'var(--gw-warning)'}}>Pendiente</span>
+                                        }
+                                      </td>
+                                      <td style={{padding:'8px 10px', textAlign:'center'}}>
+                                        <div style={{display:'flex', gap:4, justifyContent:'center'}}>
+                                          {!abono.confirmado && (
+                                            <button onClick={() => confirmarAbono(abono.id)}
+                                              style={{padding:'3px 8px', background:'rgba(46,204,138,0.1)', border:'1px solid rgba(46,204,138,0.3)', borderRadius:6, fontSize:10, cursor:'pointer', color:'var(--gw-success)', fontWeight:600}}
+                                              title="Confirmar y notificar al inversionista">✅ Confirmar</button>
+                                          )}
+                                          {!abono.confirmado && (
+                                            <button onClick={() => eliminarAbono(abono.id)}
+                                              style={{padding:'3px 8px', background:'rgba(231,76,60,0.08)', border:'1px solid rgba(231,76,60,0.2)', borderRadius:6, fontSize:10, cursor:'pointer', color:'#e74c3c', fontWeight:600}}
+                                              title="Eliminar abono">✕</button>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {/* Footer */}
+                          <div style={{display:'flex', justifyContent:'flex-end', marginTop:18}}>
+                            <button onClick={() => setAbonoModal(null)} style={{padding:'8px 20px', background:'var(--gw-border)', border:'none', borderRadius:8, cursor:'pointer', fontWeight:600, color:'var(--gw-body)', fontSize:13}}>Cerrar</button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                </div>
+                </>);
               })()}
 
               {/* ── CLOSING SUB-TAB (Fondeo only) ── */}
@@ -3707,7 +4335,14 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                     <div style={{marginBottom:24}}>
                       <div style={{fontSize:15, fontWeight:700, color:'var(--gw-heading)', marginBottom:12, display:'flex', alignItems:'center', gap:8}}>
                         🏦 If Loan — Documentos Adicionales
+                        <label style={{display:'flex', alignItems:'center', gap:6, fontSize:12, fontWeight:500, color:'var(--gw-muted)', cursor:'pointer', marginLeft:16}}>
+                          <input type="checkbox" checked={!!milestones.loan_aplica} onChange={() => setMilestones(prev => ({...prev, loan_aplica: !prev.loan_aplica}))}
+                            style={{width:16, height:16, accentColor:'var(--gw-cyan)'}} />
+                          Aplica Loan
+                        </label>
+                        {!milestones.loan_aplica && <span style={{fontSize:11, color:'var(--gw-success)', fontWeight:600}}>✅ No aplica — sección completada</span>}
                       </div>
+                      {milestones.loan_aplica && (
                       <div style={{background:'var(--gw-card)', border:'1px solid var(--gw-border)', borderRadius:12, overflowX:'auto'}}>
                         <table style={{width:'100%', borderCollapse:'collapse', minWidth:500}}>
                           <thead>
@@ -3748,6 +4383,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                           </tfoot>
                         </table>
                       </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -3984,12 +4620,12 @@ function ActivosPage({ siteId }) {
           setEstados(estadoColumn.choice.choices || []);
         } else {
           // Fallback a valores por defecto si no se encuentra
-          setEstados(["En evaluación", "En Negociación", "Activo", "Descartado"]);
+          setEstados(["Etapa 1: Evaluación", "Etapa 2: LOI & BP", "Etapa 3: Onboarding", "Etapa 4: Inversionistas", "Etapa 5: Due Diligence", "Etapa 6: Fondeo", "Etapa 7: Post-Closing", "Descartado"]);
         }
       } catch(e) {
         console.error('Error cargando columnas:', e);
         setEvaluadores([]);
-        setEstados(["En evaluación", "En Negociación", "Activo", "Descartado"]);
+        setEstados(["Etapa 1: Evaluación", "Etapa 2: LOI & BP", "Etapa 3: Onboarding", "Etapa 4: Inversionistas", "Etapa 5: Due Diligence", "Etapa 6: Fondeo", "Etapa 7: Post-Closing", "Descartado"]);
       } finally {
         setLoadingEvaluadores(false);
         setLoadingEstados(false);
@@ -4461,6 +5097,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
   const [error, setError]           = useState(null);
   const [search, setSearch]         = useState("");
   const [filterTipo, setFilterTipo] = useState("all");
+  const [filterBroker, setFilterBroker] = useState("all");
   const [viewingInv, setViewingInv] = useState(null);
   const [activeTab, setActiveTab]   = useState('general');
   const [proyectos, setProyectos]   = useState([]);
@@ -4469,6 +5106,64 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
   const [editingInv, setEditingInv] = useState(false);
   const [invForm, setInvForm]       = useState({});
   const [savingInv, setSavingInv]   = useState(false);
+  const [obsModal, setObsModal]     = useState(null);
+  const [obsText, setObsText]       = useState('');
+  const [savingObs, setSavingObs]   = useState(false);
+  const [invDocs, setInvDocs]       = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [projDocs, setProjDocs]     = useState({});
+  const invFileRef = React.useRef(null);
+  const [uploadingInvFile, setUploadingInvFile] = useState(false);
+
+  async function loadInvDocs(invId) {
+    setLoadingDocs(true);
+    try {
+      const files = await getListItemAttachments(siteId, LISTS.inversionistas, invId);
+      setInvDocs(files);
+    } catch(e) { console.error('Error loading inv docs:', e); setInvDocs([]); }
+
+    // Load project docs for each project in portfolio
+    if (proyectos.length > 0) {
+      const docsByProy = {};
+      for (const p of proyectos) {
+        try {
+          const parts = JSON.parse(p.fields?.Participaciones || '[]');
+          if (parts.some(pt => pt.invId === invId)) {
+            const pFiles = await getListItemAttachments(siteProy, LISTS.proyectos, p.id);
+            if (pFiles.length > 0) docsByProy[p.id] = { title: p.fields?.Title || '—', files: pFiles };
+          }
+        } catch {}
+      }
+      setProjDocs(docsByProy);
+    }
+    setLoadingDocs(false);
+  }
+
+  async function uploadInvDoc(invId, file) {
+    setUploadingInvFile(true);
+    try {
+      await uploadAttachment(siteId, LISTS.inversionistas, invId, file);
+      await loadInvDocs(invId);
+      showToast('Documento subido correctamente');
+    } catch(e) { showToast('Error al subir: ' + e.message, 'error'); }
+    finally { setUploadingInvFile(false); }
+  }
+
+  async function saveObservacion() {
+    if (!obsModal) return;
+    setSavingObs(true);
+    try {
+      await patchGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items/${obsModal.id}`, {
+        fields: { field_20: obsText }
+      });
+      const res = await callGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items?$expand=fields&$top=500`);
+      setItems(res.value || []);
+      setObsModal(null);
+      showToast('Observaciones guardadas correctamente');
+    } catch(e) {
+      showToast('Error al guardar: ' + e.message, 'error');
+    } finally { setSavingObs(false); }
+  }
 
   function showToast(msg, type='success') {
     setToast({ msg, type });
@@ -4495,6 +5190,8 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
       field_17: f.field_17 || '',
       field_18: f.field_18 || '',
       field_20: f.field_20 || '',
+      Broker: f.Broker || '',
+      Banco2: f.Banco2 || '', TipoCuenta2: f.TipoCuenta2 || '', NumeroCuenta2: f.NumeroCuenta2 || '', Routing2: f.Routing2 || '', Titular2: f.Titular2 || '',
     });
     setEditingInv(true);
   }
@@ -4522,6 +5219,8 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
           field_17: invForm.field_17,
           field_18: invForm.field_18,
           field_20: invForm.field_20,
+          Broker: invForm.Broker,
+          Banco2: invForm.Banco2, TipoCuenta2: invForm.TipoCuenta2, NumeroCuenta2: invForm.NumeroCuenta2, Routing2: invForm.Routing2, Titular2: invForm.Titular2,
         }
       });
       const res = await callGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items?$expand=fields&$top=500`);
@@ -4592,12 +5291,9 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
     return t * p / 100;
   }
 
-  function calcPagado(montoTarget, pct, aporteEstado) {
-    const total = calcMonto(montoTarget, pct);
-    if (total === null) return null;
-    if (aporteEstado === 'completo') return total;
-    if (aporteEstado === 'parcial')  return total * 0.30;
-    return 0;
+  function calcPagadoReal(participacion) {
+    // Sum actual GFD Recibido + FD Recibido from the participation data
+    return (Number(participacion.gfdRecibido) || 0) + (Number(participacion.fdRecibido) || 0);
   }
 
   function openInv(item) {
@@ -4606,12 +5302,15 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
     loadProyectos();
   }
 
+  const brokers = [...new Set(items.map(i => i.fields?.Broker).filter(Boolean))].sort();
+
   const filtered = items.filter(i => {
     const f = i.fields || {};
     const q = search.toLowerCase();
     const nameOk = (f.Title||'').toLowerCase().includes(q) || (f.field_2||'').toLowerCase().includes(q);
-    if (filterTipo === 'all') return nameOk;
-    return nameOk && getTipoInv(f) === filterTipo;
+    const tipoOk = filterTipo === 'all' || getTipoInv(f) === filterTipo;
+    const brokerOk = filterBroker === 'all' || (f.Broker || '') === filterBroker;
+    return nameOk && tipoOk && brokerOk;
   });
 
   if (loading) return <Loading />;
@@ -4624,14 +5323,14 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
     const portfolio = getPortfolio(viewingInv.id);
 
     const totalInvertido = portfolio.reduce((s, { proyecto, participacion }) =>
-      s + (calcMonto(proyecto.fields?.MontoTarget, participacion.porcentaje) || 0), 0);
+      s + (Number(participacion.montoInversion) || calcMonto(proyecto.fields?.MontoTarget, participacion.porcentaje) || 0), 0);
     const totalPagado = portfolio.reduce((s, { proyecto, participacion }) =>
-      s + (calcPagado(proyecto.fields?.MontoTarget, participacion.porcentaje, participacion.aporteEstado) || 0), 0);
+      s + calcPagadoReal(participacion), 0);
 
     const tabs = [
       { id:'general',   label:'📋 Datos Generales',          color:'var(--gw-cyan)' },
       { id:'portfolio', label:`💼 Portafolio (${portfolio.length})`, color:'#1A6B3A' },
-      { id:'legal',     label:'📄 Proceso Legal',             color:'#7B61FF' },
+      { id:'documentos', label:'📂 Documentos', color:'#7B61FF' },
     ];
 
     const FieldRow = ({ label, value, icon }) => !value ? null : (
@@ -4720,7 +5419,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
             {tabs.map(tab => {
               const isActive = activeTab === tab.id;
               return (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+                <button key={tab.id} onClick={() => { setActiveTab(tab.id); if (tab.id === 'documentos' && viewingInv) loadInvDocs(viewingInv.id); }} style={{
                   padding:'14px 18px 12px', border:'none', cursor:'pointer',
                   background: isActive ? `${tab.color}18` : 'none',
                   borderBottom: isActive ? `3px solid ${tab.color}` : '3px solid transparent',
@@ -4752,6 +5451,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                     { key:'field_1', label:'Tipo de Persona' },
                     { key:'field_9', label:'Representante Legal' },
                     { key:'field_10',label:'Estado KYC / DD' },
+                    { key:'Broker',  label:'Broker / Referente' },
                   ].map(({key,label}) => (
                     <div key={key}>
                       <div style={{fontSize:11, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>{label}</div>
@@ -4792,6 +5492,25 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                     { key:'field_16', label:'Número de Cuenta' },
                     { key:'field_17', label:'Routing Number' },
                     { key:'field_18', label:'Nombre del Titular' },
+                  ].map(({key,label}) => (
+                    <div key={key}>
+                      <div style={{fontSize:11, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>{label}</div>
+                      <input value={invForm[key]||''} onChange={e => setInvForm(p=>({...p,[key]:e.target.value}))}
+                        style={{width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid var(--gw-border)',
+                          background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Bancario 2 */}
+                <div style={{fontSize:13, fontWeight:700, color:'var(--gw-cyan)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12}}>Cuenta Bancaria Adicional</div>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:20}}>
+                  {[
+                    { key:'Banco2', label:'Banco' },
+                    { key:'TipoCuenta2', label:'Tipo de Cuenta' },
+                    { key:'NumeroCuenta2', label:'Número de Cuenta' },
+                    { key:'Routing2', label:'Routing Number' },
+                    { key:'Titular2', label:'Nombre del Titular' },
                   ].map(({key,label}) => (
                     <div key={key}>
                       <div style={{fontSize:11, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>{label}</div>
@@ -4852,23 +5571,6 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                   )}
                 </div>
 
-                {/* Status card — full width */}
-                <div style={{background:'var(--gw-card)', borderRadius:16, border:'1px solid var(--gw-border)', borderTop:'3px solid #7B61FF', padding:'24px', gridColumn:'1 / -1'}}>
-                  <div style={{fontSize:14, fontWeight:700, color:'var(--gw-heading)', marginBottom:16}}>✅ Estado de Validación</div>
-                  <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(190px,1fr))', gap:12}}>
-                    {[
-                      { label:'KYC',          value: f.field_10 || 'Pendiente' },
-                      { label:'Onboarding',   value: f.field_12 || 'Pendiente' },
-                      { label:'Term Sheet',   value: f.field_11 || 'Pendiente' },
-                    ].map(s => (
-                      <div key={s.label} style={{background:'var(--gw-page-bg)', borderRadius:10, border:'1px solid var(--gw-border)', padding:'14px'}}>
-                        <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8}}>{s.label}</div>
-                        {getEtapaBadge(s.value)}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
               </div>
             )}
 
@@ -4912,16 +5614,17 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                     {/* Project cards */}
                     {portfolio.map(({ proyecto, participacion }) => {
                       const pf  = proyecto.fields || {};
-                      const montoInv  = calcMonto(pf.MontoTarget, participacion.porcentaje);
-                      const montoPag  = calcPagado(pf.MontoTarget, participacion.porcentaje, participacion.aporteEstado);
+                      const montoInv  = Number(participacion.montoInversion) || calcMonto(pf.MontoTarget, participacion.porcentaje) || 0;
+                      const montoPag  = calcPagadoReal(participacion);
                       const phase     = getPhaseLabel(pf.EtapaActual);
-                      const aporteConfig = {
-                        completo:  { label:'✅ Aportes Completos',      bg:'rgba(46,204,138,0.12)',  color:'var(--gw-success)' },
-                        parcial:   { label:'🔄 GFD Recibido (30%)',     bg:'rgba(26,143,168,0.12)',  color:'var(--gw-cyan)'    },
-                        pendiente: { label:'⏳ Aportes Pendientes',      bg:'rgba(232,160,48,0.12)',  color:'var(--gw-warning)' },
-                      };
-                      const ac = aporteConfig[participacion.aporteEstado] || aporteConfig.pendiente;
-                      const pendiente = (montoInv !== null && montoPag !== null) ? montoInv - montoPag : null;
+                      const pctPagado = montoInv > 0 ? Math.round(montoPag / montoInv * 100) : 0;
+                      const aporteLabel = pctPagado >= 100
+                        ? { label:'✅ Aportes Completos', bg:'rgba(46,204,138,0.12)', color:'var(--gw-success)' }
+                        : pctPagado > 0
+                          ? { label:`🔄 ${pctPagado}% Recibido`, bg:'rgba(26,143,168,0.12)', color:'var(--gw-cyan)' }
+                          : { label:'⏳ Aportes Pendientes', bg:'rgba(232,160,48,0.12)', color:'var(--gw-warning)' };
+                      const ac = aporteLabel;
+                      const pendiente = montoInv - montoPag;
 
                       return (
                         <div key={proyecto.id} style={{
@@ -4977,71 +5680,61 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
               </div>
             )}
 
-            {/* ── LEGAL TAB ── */}
-            {!editingInv && activeTab === 'legal' && (
-              <div style={{display:'flex', flexDirection:'column', gap:16}}>
+            {/* ── DOCUMENTOS TAB ── */}
+            {!editingInv && activeTab === 'documentos' && (() => {
+              const invName = viewingInv?.fields?.Title || '';
+              const baseUrl = `https://gwealthm.sharepoint.com/sites/Inversionistas/Documentos%20de%20Inversionistas/${encodeURIComponent(invName)}`;
+              const folders = [
+                { name: 'Identificacion', icon: '🪪', desc: 'Documentos de identidad, pasaporte, KYC' },
+                { name: 'Bancario', icon: '🏦', desc: 'Certificaciones bancarias, formularios' },
+              ];
+              return (
+                <div style={{display:'flex', flexDirection:'column', gap:20}}>
 
-                {/* Legal doc status */}
-                <div style={{background:'var(--gw-card)', borderRadius:16, border:'1px solid var(--gw-border)', borderTop:'3px solid #7B61FF', padding:'24px'}}>
-                  <div style={{fontSize:15, fontWeight:700, color:'var(--gw-heading)', marginBottom:20}}>📋 Estado del Proceso Legal</div>
-                  <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(220px,1fr))', gap:12}}>
-                    {[
-                      { id:'onboarding', label:'Onboarding KYC',          icon:'🚀', desc:'Datos y documentos KYC completados' },
-                      { id:'ts',         label:'Term Sheet',               icon:'📝', desc:'TS enviado, firmado por inversionista' },
-                      { id:'ppm',        label:'PPM',                      icon:'📑', desc:'Private Placement Memorandum emitido' },
-                      { id:'reg_s',      label:'Reg S / CIQ',              icon:'🌐', desc:'Certificación regulatoria no-US' },
-                      { id:'sa',         label:'Subscription Agreement',   icon:'✍️', desc:'SA firmado por el inversionista' },
-                      { id:'oa',         label:'Operating Agreement',      icon:'📜', desc:'Exhibit A — lista de miembros' },
-                    ].map(doc => (
-                      <div key={doc.id} style={{
-                        background:'var(--gw-page-bg)', borderRadius:12,
-                        border:'1px solid var(--gw-border)', padding:'16px',
-                        display:'flex', flexDirection:'column', gap:10
-                      }}>
-                        <div style={{display:'flex', gap:10, alignItems:'center'}}>
-                          <span style={{fontSize:20}}>{doc.icon}</span>
-                          <div>
-                            <div style={{fontSize:13, fontWeight:700, color:'var(--gw-heading)'}}>{doc.label}</div>
-                            <div style={{fontSize:11, color:'var(--gw-muted)'}}>{doc.desc}</div>
-                          </div>
-                        </div>
-                        {getEtapaBadge('Pendiente')}
+                  {/* Carpeta principal */}
+                  <div style={{background:'var(--gw-card)', borderRadius:16, border:'1px solid var(--gw-border)', borderTop:'3px solid #7B61FF', padding:'24px'}}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
+                      <div>
+                        <div style={{fontSize:16, fontWeight:700, color:'var(--gw-heading)'}}>📂 Documentos del Inversionista</div>
+                        <div style={{fontSize:12, color:'var(--gw-muted)', marginTop:4}}>{invName}</div>
                       </div>
-                    ))}
-                  </div>
-                  <div style={{marginTop:16, padding:'12px 16px', background:'rgba(123,97,255,0.08)', borderRadius:10, fontSize:13, color:'var(--gw-muted)', border:'1px solid rgba(123,97,255,0.2)'}}>
-                    💡 Los estados se actualizarán automáticamente conforme los flujos de Power Automate completen cada etapa del inversionista.
-                  </div>
-                </div>
+                      <button onClick={() => window.open(baseUrl, '_blank')}
+                        style={{padding:'8px 18px', background:'none', border:'1px solid var(--gw-cyan)', borderRadius:8, fontSize:12, cursor:'pointer', color:'var(--gw-cyan)', fontWeight:600, display:'flex', alignItems:'center', gap:6}}>
+                        📂 Abrir carpeta en SharePoint
+                      </button>
+                    </div>
 
-                {/* Per-project legal progress */}
-                {portfolio.length > 0 && (
-                  <div style={{background:'var(--gw-card)', borderRadius:16, border:'1px solid var(--gw-border)', borderTop:'3px solid var(--gw-success)', padding:'24px'}}>
-                    <div style={{fontSize:15, fontWeight:700, color:'var(--gw-heading)', marginBottom:16}}>📊 Proyectos Asociados</div>
-                    <div style={{display:'flex', flexDirection:'column', gap:10}}>
-                      {portfolio.map(({ proyecto, participacion }) => {
-                        const pf = proyecto.fields || {};
-                        return (
-                          <div key={proyecto.id} style={{display:'flex', gap:14, alignItems:'center', padding:'14px 16px', background:'var(--gw-page-bg)', borderRadius:10, border:'1px solid var(--gw-border)', flexWrap:'wrap'}}>
-                            <div style={{flex:1, minWidth:160}}>
-                              <div style={{fontWeight:700, fontSize:14, color:'var(--gw-heading)'}}>{pf.Title || '—'}</div>
-                              <div style={{fontSize:12, color:'var(--gw-muted)', marginTop:2}}>Participación: {participacion.porcentaje}% · {participacion.tipo === 'juridica' ? 'Jurídica' : 'Natural'}</div>
-                            </div>
-                            <div style={{display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
-                              {getEtapaBadge(pf.EtapaActual)}
-                              {(onNavigateToProject || onNavigateTo) && (
-                                <button onClick={() => onNavigateToProject ? onNavigateToProject(proyecto) : onNavigateTo('proyectos')}
-                                  style={{padding:'5px 12px', background:'none', border:'1px solid var(--gw-border)', borderRadius:6, cursor:'pointer', fontSize:11, color:'var(--gw-cyan)', fontWeight:600}}>Ver →</button>
-                              )}
-                            </div>
+                    {/* Subcarpetas */}
+                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14}}>
+                      {folders.map(sf => (
+                        <div key={sf.name}
+                          onClick={() => window.open(`${baseUrl}/${encodeURIComponent(sf.name)}`, '_blank')}
+                          style={{
+                            background:'var(--gw-page-bg)', borderRadius:12, border:'1px solid var(--gw-border)',
+                            padding:'20px', cursor:'pointer', transition:'all 0.2s', display:'flex', gap:14, alignItems:'center'
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor='var(--gw-cyan)'; e.currentTarget.style.boxShadow='0 4px 16px rgba(26,143,168,0.12)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor='var(--gw-border)'; e.currentTarget.style.boxShadow='none'; }}>
+                          <div style={{width:48, height:48, borderRadius:12, background:'rgba(26,143,168,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0}}>
+                            {sf.icon}
                           </div>
-                        );
-                      })}
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:14, fontWeight:700, color:'var(--gw-heading)', marginBottom:2}}>{sf.name}</div>
+                            <div style={{fontSize:12, color:'var(--gw-muted)'}}>{sf.desc}</div>
+                          </div>
+                          <span style={{fontSize:18, color:'var(--gw-cyan)'}}>→</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )}
 
-              </div>
+                  {/* Nota informativa */}
+                  <div style={{padding:'14px 18px', background:'rgba(26,143,168,0.06)', borderRadius:10, border:'1px solid rgba(26,143,168,0.15)', fontSize:12, color:'var(--gw-muted)', lineHeight:1.5}}>
+                    💡 Las carpetas se crean automáticamente en SharePoint cuando se registra un nuevo inversionista. Los documentos legales por proyecto (TS, SA, OA) se encuentran en la carpeta del proyecto correspondiente.
+                  </div>
+                </div>
+              );
+            })()}
             )}
 
           </div>
@@ -5071,6 +5764,11 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
           <option value="all">👥 Todos los tipos</option>
           <option value="natural">👤 Personas Naturales</option>
           <option value="juridica">🏢 Personas Jurídicas / LLC</option>
+        </select>
+        <select value={filterBroker} onChange={e => setFilterBroker(e.target.value)}
+          style={{padding:'8px 14px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-card)', color:'var(--gw-body)', fontSize:13, cursor:'pointer'}}>
+          <option value="all">🤝 Todos los brokers</option>
+          {brokers.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
         <span style={{fontSize:12, color:'var(--gw-muted)', whiteSpace:'nowrap'}}>
           {filtered.length} inversionista{filtered.length !== 1 ? 's' : ''}
@@ -5120,7 +5818,10 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                     <div style={{fontWeight:700, fontSize:15, color:'var(--gw-heading)', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{f.Title || '—'}</div>
                     <div style={{fontSize:12, color:'var(--gw-muted)'}}>{tipo==='juridica' ? 'Persona Jurídica / LLC' : 'Persona Natural'}</div>
                   </div>
-                  {getEtapaBadge(f.Estado || 'Prospecto')}
+                  <div style={{display:'flex', flexDirection:'column', gap:4, alignItems:'flex-end'}}>
+                    {getEtapaBadge(f.Estado || 'Prospecto')}
+                    {f.Broker && <span style={{fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99, background:'rgba(232,160,48,0.12)', color:'var(--gw-warning)', whiteSpace:'nowrap'}}>🤝 {f.Broker}</span>}
+                  </div>
                 </div>
 
                 {/* Divider */}
@@ -5153,18 +5854,54 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
 
                 {/* Footer */}
                 <div style={{marginTop:14, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                  <button onClick={e => { e.stopPropagation(); setViewingInv(item); openEditInv(item); }}
-                    style={{fontSize:12, background:'none', border:'1px solid var(--gw-border)',
-                      borderRadius:6, padding:'4px 10px', cursor:'pointer', color:'var(--gw-muted)',
-                      transition:'border-color 0.15s, color 0.15s'}}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor='var(--gw-cyan)'; e.currentTarget.style.color='var(--gw-cyan)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor='var(--gw-border)'; e.currentTarget.style.color='var(--gw-muted)'; }}
-                  >✏️ Editar</button>
+                  <div style={{display:'flex', gap:6}}>
+                    <button onClick={e => { e.stopPropagation(); setViewingInv(item); openEditInv(item); }}
+                      style={{fontSize:12, background:'none', border:'1px solid var(--gw-border)',
+                        borderRadius:6, padding:'4px 10px', cursor:'pointer', color:'var(--gw-muted)',
+                        transition:'border-color 0.15s, color 0.15s'}}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor='var(--gw-cyan)'; e.currentTarget.style.color='var(--gw-cyan)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor='var(--gw-border)'; e.currentTarget.style.color='var(--gw-muted)'; }}
+                    >✏️ Editar</button>
+                    <button onClick={e => { e.stopPropagation(); setObsText(f.field_20 || ''); setObsModal(item); }}
+                      style={{fontSize:12, background:'none', border:'1px solid var(--gw-border)',
+                        borderRadius:6, padding:'4px 10px', cursor:'pointer', color:'var(--gw-muted)',
+                        transition:'border-color 0.15s, color 0.15s', position:'relative'}}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor='var(--gw-warning)'; e.currentTarget.style.color='var(--gw-warning)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor='var(--gw-border)'; e.currentTarget.style.color='var(--gw-muted)'; }}
+                    >📝 Obs{f.field_20 ? ' ●' : ''}</button>
+                  </div>
                   <span style={{fontSize:12, color:'var(--gw-cyan)', fontWeight:600}}>Ver perfil →</span>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── OBSERVACIONES MODAL ── */}
+      {obsModal && (
+        <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999}}
+          onClick={() => setObsModal(null)}>
+          <div style={{background:'var(--gw-surface)', borderRadius:16, padding:'28px', width:520, maxWidth:'90vw', maxHeight:'80vh', overflow:'auto',
+            border:'1px solid var(--gw-border)', boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}
+            onClick={e => e.stopPropagation()}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18}}>
+              <div>
+                <div style={{fontSize:16, fontWeight:700, color:'var(--gw-heading)'}}>📝 Observaciones</div>
+                <div style={{fontSize:13, color:'var(--gw-muted)', marginTop:2}}>{obsModal.fields?.Title || ''}</div>
+              </div>
+              <button onClick={() => setObsModal(null)} style={{background:'none', border:'none', fontSize:18, cursor:'pointer', color:'var(--gw-muted)', padding:'4px'}}>✕</button>
+            </div>
+            <textarea value={obsText} onChange={e => setObsText(e.target.value)} rows={8} placeholder="Agregar observaciones sobre este inversionista..."
+              style={{width:'100%', padding:'12px', borderRadius:10, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)',
+                color:'var(--gw-body)', fontSize:13, resize:'vertical', boxSizing:'border-box', lineHeight:1.5, marginBottom:16}} />
+            <div style={{display:'flex', gap:10, justifyContent:'flex-end'}}>
+              <button onClick={() => setObsModal(null)} style={{padding:'8px 18px', background:'var(--gw-border)', border:'none', borderRadius:8, cursor:'pointer', fontWeight:600, color:'var(--gw-body)', fontSize:13}}>Cancelar</button>
+              <button onClick={saveObservacion} disabled={savingObs} style={{padding:'8px 18px', background:'var(--gw-cyan)', color:'white', border:'none', borderRadius:8, cursor:'pointer', fontWeight:700, fontSize:13, opacity: savingObs ? 0.6 : 1}}>
+                {savingObs ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
