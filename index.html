@@ -861,11 +861,17 @@
     .modal { max-height: 80vh; }
   }
   
-  /* iPad Pro y tablets grandes */
+  /* iPad Pro y tablets grandes / laptops pequeños */
   @media (min-width: 1025px) and (max-width: 1366px) {
-    .sidebar { width: 240px; min-width: 240px; }
-    .main { margin-left: 240px; }
+    .sidebar { width: 220px; min-width: 220px; }
+    .main { margin-left: 220px; }
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .page { padding: 20px; }
+  }
+
+  /* Laptops estándar (1367px - 1600px) */
+  @media (min-width: 1025px) and (max-width: 1600px) {
+    .page { padding: 22px; }
   }
   
   /* Touch-friendly improvements */
@@ -946,7 +952,7 @@ const DOCUMENT_LIBRARY = {
 
 // Mapeo de sección → subcarpetas del proyecto (nombres exactos de SharePoint)
 const SECTION_FOLDERS = {
-  e2: [{ name: '01 Legal', icon: '⚖️' }],
+  e2: [{ name: '02 Finanzas', icon: '💰' }],
   e3: [{ name: '01 Legal', icon: '⚖️' }, { name: '05 Marketing', icon: '📣' }],
   e4: [{ name: '04 Inversionistas', icon: '👥' }],
   e5: [{ name: '03 Due Dilligence', icon: '🔍' }],
@@ -1598,7 +1604,7 @@ function Dashboard({ siteInv, siteProy }) {
   const numActivos     = data.activos.length;
   const numInv         = data.inversionistas.length;
   // Pipeline: activos en E2+ / total activos
-  const activosConProy    = new Set(activeProy.map(p => p.fields?.ActivoRelacionadoId).filter(Boolean));
+  const activosConProy    = new Set(activeProy.map(p => p.fields?.ActivoRelacionadoLookupId || p.fields?.ActivoRelacionadoId).filter(Boolean));
   const activosEnPipeline = data.activos.filter(a => {
     const est = a.fields?.Estado || '';
     return est && est !== 'Etapa 1: Evaluación' && est !== 'En evaluación' && est !== 'Descartado';
@@ -2186,13 +2192,29 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     Title:'', field_1:'juridica', field_2:'', field_3:'', field_4:'', field_5:'', field_6:'', field_7:'', field_9:'', Broker:'',
     porcentaje:'', montoInversion:'', gfdPct:30, finalDepositPct:70, gfd:'', finalDeposit:'',
   });
+  const [brokerChoices, setBrokerChoices] = useState([]);
+
+  // Load Broker column choices from SharePoint
+  useEffect(() => {
+    async function loadBrokerChoices() {
+      try {
+        const res = await callGraph(`/sites/${siteInv}/lists/${LISTS.inversionistas}/columns`);
+        const brokerCol = (res.value || []).find(c => c.name === 'Broker' || c.displayName === 'Broker' || c.name === 'BrokerReferente' || c.displayName === 'Broker / Referente');
+        if (brokerCol?.choice?.choices) {
+          setBrokerChoices(brokerCol.choice.choices);
+          console.log('[GWealth] Broker choices loaded:', brokerCol.choice.choices);
+        }
+      } catch(e) { console.warn('[GWealth] Could not load broker choices:', e.message); }
+    }
+    if (siteInv) loadBrokerChoices();
+  }, [siteInv]);
 
   // ── Abonos modal state ──
   const [abonoModal, setAbonoModal] = useState(null); // { idx, part }
   const [newAbono, setNewAbono] = useState({ fecha:'', monto:'', tipo:'gfd', referencia:'', notas:'' });
 
   const [form, setForm] = useState({
-    Title:"", NombredelaLLC:"", EtapaActual:"Etapa 1: Evaluación",
+    Title:"", NombreComercial:"", NombredelaLLC:"", EtapaActual:"Etapa 1: Evaluación",
     MontoTarget:"", MontoLevantado:"", FechaCierreEstimado:"",
     EstadoLLC:"Pendiente", EstadoCuentaBancaria:"Pendiente",
     IdLLC:"", BancoProyecto:"", NumeroCuentaProyecto:"", RoutingProyecto:""
@@ -2205,16 +2227,45 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
   async function loadProjectHitos(projectId) {
     try {
+      // First query: get all fields normally
       const res = await callGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items?$expand=fields&$top=200`);
       const all = res.value || [];
       const filtered = all.filter(h => String(h.fields?.ProyectoLookupId || h.fields?.ProyectoId) === String(projectId));
-      setProjectHitos(filtered);
+
+      // Second query: get Person field display values by requesting the lookup column explicitly
+      let personLookup = {};
+      try {
+        const res2 = await callGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items?$expand=fields($select=Aprobado_x002f_Completadopor)&$top=200`);
+        (res2.value || []).forEach(h => {
+          const val = h.fields?.['Aprobado_x002f_Completadopor'] || h.fields?.['Aprobado_x002f_CompletadoporLookupId'];
+          if (val && typeof val === 'string' && isNaN(val)) {
+            personLookup[String(h.id)] = val;
+          } else if (val && typeof val === 'object') {
+            // Person field might return as object with Email/Title
+            personLookup[String(h.id)] = val.Title || val.Email || val.displayName || JSON.stringify(val);
+          }
+        });
+        console.log('[GWealth] Person lookup resolved:', JSON.stringify(personLookup));
+      } catch(e2) {
+        console.warn('[GWealth] Could not resolve person fields:', e2.message);
+      }
+
+      // Enrich hitos with resolved approver names
+      const enriched = filtered.map(h => {
+        const resolvedName = personLookup[String(h.id)] || '';
+        if (resolvedName) {
+          return { ...h, fields: { ...h.fields, _resolvedAprobadorNombre: resolvedName } };
+        }
+        return h;
+      });
+
+      setProjectHitos(enriched);
 
       // Auto-marcar checkboxes basado en el hito MÁS RECIENTE de cada tipo
       const approvalMap = { 'BP1': 'bp1_aprobado', 'BP2': 'bp2_aprobado', 'Brochure One Pager': 'brochure_onepager_aprobado', 'Brochure Full Version': 'brochure_full_aprobado', 'TS - OA': 'ts_proyecto' };
       // Agrupar por tipo y tomar el más reciente
       const latestByType = {};
-      filtered.forEach(h => {
+      enriched.forEach(h => {
         const tipo = h.fields?.TipoHito;
         if (!tipo || !approvalMap[tipo]) return;
         if (!latestByType[tipo] || Number(h.id) > Number(latestByType[tipo].id)) {
@@ -2260,11 +2311,11 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     const f = hito.fields || {};
     return {
       estado: f['EstadoAprobaci_x00f3_n'] || f.EstadoAprobacion || null,
-      comentario: f.Observacionesocomentarios || f['Observaciones_x0020_o_x0020_comentarios'] || f.Observacionesocomentario || f.ComentarioAprobacion || '',
-      fechaSolicitud: f.FechadeSolicitud || f['FechadeSolicitud'] || '',
-      fechaResolucion: f['FechadeResoluci_x00f3_n'] || f.FechaDeResolucion || '',
-      solicitadoPor: f.SolicitadoPor || f['Solicitadopor'] || '',
-      aprobadoPor: f['Aprobado_x002f__x0020_Completad'] || f.AprobadoPor || '',
+      comentario: f.Observacionesocomentarios || f['Observaciones_x0020_o_x0020_comentarios'] || f.Observacionesocomentario || f.ComentarioAprobacion || f.Comentarios || '',
+      fechaSolicitud: f.FechadeSolicitud || f['Fecha_x0020_de_x0020_Solicitud'] || '',
+      fechaResolucion: f['FechadeResoluci_x00f3_n'] || f.FechaDeResolucion || f['Fecha_x0020_de_x0020_Resoluci_x00f3_n'] || f.FechaResolucion || '',
+      solicitadoPor: f.SolicitadoPor || f['Solicitadopor'] || f['Solicitado_x0020_por'] || '',
+      aprobadoPor: f._resolvedAprobadorNombre || f['Aprobado_x002f__x0020_Completad'] || f.AprobadoPor || f['Aprobadopor'] || '',
     };
   }
 
@@ -2385,6 +2436,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     setNotes(nts);
     setForm({
       Title: item.fields.Title || "",
+      NombreComercial: item.fields.NombreComercial || "",
       NombredelaLLC: item.fields.NombredelaLLC || "",
       EtapaActual: item.fields.EtapaActual || "Etapa 1: Evaluación",
       MontoTarget: item.fields.MontoTarget ? String(item.fields.MontoTarget) : "",
@@ -2425,8 +2477,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
         // Persist etapa change immediately
         patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${viewingProject.id}`, {
           fields: { EtapaActual: newEtapa }
-        }).then(() => {
-          const activoId = viewingProject.fields?.ActivoRelacionadoId;
+        }).then(async () => {
+          const activoId = await findActivoIdForProject(viewingProject);
           if (activoId) {
             patchGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}`, {
               fields: { Estado: newEtapa }
@@ -2446,6 +2498,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       await patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${viewingProject.id}`, {
         fields: {
           Title: form.Title,
+          NombreComercial: form.NombreComercial || null,
           NombredelaLLC: form.NombredelaLLC,
           EtapaActual: form.EtapaActual,
           MontoTarget: form.MontoTarget ? parseFloat(form.MontoTarget) : null,
@@ -2481,6 +2534,12 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   const etapaOrder = ['e2','e3','e4','e5','fondeo','post_closing'];
 
   function detectCurrentEtapa(milData) {
+    // E1 → E2: requires BP1 approved (via hito approval, not just milestone checkbox)
+    const bp1Status = getHitoStatus('BP1');
+    const bp1Approved = bp1Status === 'Aprobado';
+    if (!bp1Approved) return 'Etapa 1: Evaluación';
+
+    // From E2 onwards: use milestone completion to detect stage
     // Find the highest completed section
     let highestCompleted = null;
     for (const secId of etapaOrder) {
@@ -2489,12 +2548,87 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       const allDone = section.milestones.every(m => milData[m.id]);
       if (allDone && section.milestones.length > 0) highestCompleted = secId;
     }
-    if (!highestCompleted) return 'Etapa 1: Evaluación';
+    // If BP1 approved but no section fully completed yet, we're in E2
+    if (!highestCompleted) return 'Etapa 2: LOI & BP';
     // The current etapa is the NEXT one after the highest completed
     const idx = etapaOrder.indexOf(highestCompleted);
     if (idx >= etapaOrder.length - 1) return sectionToEtapa[highestCompleted]; // All done, stay at last
     return sectionToEtapa[etapaOrder[idx + 1]];
   }
+
+  // Helper: find the activo ID linked to the current project
+  async function findActivoIdForProject(project) {
+    if (!project) return null;
+    const f = project.fields || {};
+    // Try all possible field names for the activo relationship
+    const directId = f.ActivoRelacionadoId || f.ActivoRelacionadoLookupId
+      || f['ActivoRelacionado'] || f['Activo_x0020_RelacionadoLookupId']
+      || f['Activo_x0020_RelacionadoId'] || f['ActivoRelacionado_x003a_Id'];
+    if (directId) {
+      console.log('[GWealth] Found activo ID directly:', directId);
+      return String(directId);
+    }
+    // Fallback: search activos list by matching project title
+    try {
+      const projectTitle = f.Title || '';
+      console.log('[GWealth] No direct activo link found. Searching by project title:', projectTitle);
+      const res = await callGraph(`/sites/${siteId}/lists/${LISTS.activos}/items?$expand=fields&$top=100`);
+      const activos = res.value || [];
+      // Try to match by Title containing project name or vice versa
+      const match = activos.find(a => {
+        const aTitle = a.fields?.Title || '';
+        return projectTitle.toLowerCase().includes(aTitle.toLowerCase())
+          || aTitle.toLowerCase().includes(projectTitle.toLowerCase());
+      });
+      if (match) {
+        console.log('[GWealth] Found activo by title match:', match.id, match.fields?.Title);
+        return String(match.id);
+      }
+      console.warn('[GWealth] No matching activo found for project:', projectTitle);
+    } catch(e) {
+      console.warn('[GWealth] Error searching activo:', e.message);
+    }
+    return null;
+  }
+
+  // ── AUTO-DETECT ETAPA when hitos/milestones change + SYNC ACTIVO ──
+  useEffect(() => {
+    if (!viewingProject || projectHitos.length === 0) return;
+    const newEtapa = detectCurrentEtapa(milestones);
+    const currentEtapa = viewingProject.fields?.EtapaActual;
+
+    async function syncEtapa() {
+      const activoId = await findActivoIdForProject(viewingProject);
+
+      if (newEtapa && newEtapa !== currentEtapa) {
+        // Etapa changed → update project + activo
+        console.log('[GWealth] Auto-updating etapa:', currentEtapa, '→', newEtapa);
+        setForm(f => ({ ...f, EtapaActual: newEtapa }));
+        setViewingProject(p => ({ ...p, fields: { ...p.fields, EtapaActual: newEtapa } }));
+        try {
+          await patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${viewingProject.id}`, {
+            fields: { EtapaActual: newEtapa }
+          });
+          if (activoId) {
+            await patchGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}`, {
+              fields: { Estado: newEtapa }
+            });
+            console.log('[GWealth] Activo updated to:', newEtapa);
+          }
+          showToast(`📊 Etapa actualizada automáticamente: ${newEtapa}`);
+        } catch(e) { console.warn('Could not persist etapa update:', e.message); }
+      } else if (newEtapa && activoId) {
+        // Etapa matches project, but activo might be out of sync → force sync
+        try {
+          await patchGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}`, {
+            fields: { Estado: newEtapa }
+          });
+          console.log('[GWealth] Activo synced to project etapa:', newEtapa);
+        } catch(e) { console.warn('Could not sync activo:', e.message); }
+      }
+    }
+    syncEtapa();
+  }, [projectHitos, milestones]);
 
   async function saveMilestonesAndNotes() {
     if (!viewingProject) return;
@@ -2519,7 +2653,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
       // Also update the associated asset's Estado if etapa changed
       if (newEtapa !== currentEtapa) {
-        const activoId = viewingProject.fields?.ActivoRelacionadoId;
+        const activoId = await findActivoIdForProject(viewingProject);
         if (activoId) {
           try {
             await patchGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}`, {
@@ -2756,6 +2890,15 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     saveParticipaciones(updated);
   }
 
+  // Local-only update (no save to SharePoint) — used for typing in inputs
+  function updatePartFieldLocal(idx, field, val) {
+    setParticipaciones(prev => prev.map((p,i) => i===idx ? {...p, [field]:val} : p));
+  }
+  // Save current participaciones to SharePoint — called on blur
+  function savePartToSP() {
+    saveParticipaciones([...participaciones]);
+  }
+  // Legacy: immediate save (used for dropdowns/selects that should persist immediately)
   function updatePartField(idx, field, val) {
     const updated = participaciones.map((p,i) => i===idx ? {...p, [field]:val} : p);
     saveParticipaciones(updated);
@@ -2914,68 +3057,49 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
         {/* ── Fixed header wrapper: header + tabs combined ── */}
         <div style={{flexShrink:0, background:'var(--gw-card)', boxShadow:'0 2px 16px rgba(0,0,0,0.10)', zIndex:10}}>
 
-        {/* ── Header bar ── */}
-        <div style={{
-          borderBottom:'1px solid var(--gw-border)',
-          padding:'14px 24px', display:'flex', alignItems:'center', gap:16,
-          flexWrap:'wrap'
-        }}>
-          <button onClick={closeProject} style={{
-            background:'none', border:'1px solid var(--gw-border)', borderRadius:8,
-            padding:'6px 14px', cursor:'pointer', color:'var(--gw-body)',
-            fontSize:13, display:'flex', alignItems:'center', gap:6, flexShrink:0
-          }}>← Proyectos</button>
-          <button onClick={async () => { showToast('🔄 Actualizando...', 'info'); await refreshItems(); const fresh = items.find(i => i.id === viewingProject.id); if (fresh) { setViewingProject(fresh); openProject(fresh); } showToast('✅ Datos actualizados'); }}
-            style={{background:'none', border:'1px solid var(--gw-border)', borderRadius:8, padding:'6px 12px', cursor:'pointer', color:'var(--gw-muted)', fontSize:13, flexShrink:0}}
-            title="Actualizar datos del proyecto">🔄</button>
-
-          <div style={{flex:1, minWidth:150}}>
-            <div style={{fontSize:18, fontWeight:700, color:'var(--gw-heading)', lineHeight:1.2}}>{p.fields?.Title}</div>
-            <div style={{fontSize:12, color:'var(--gw-muted)', marginTop:2}}>{p.fields?.NombredelaLLC || '—'}</div>
+        {/* ── Header bar (2 rows for better responsiveness) ── */}
+        <div style={{borderBottom:'1px solid var(--gw-border)', padding:'10px 20px'}}>
+          {/* Row 1: Navigation + Title + Actions */}
+          <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:8, flexWrap:'wrap'}}>
+            <button onClick={closeProject} style={{
+              background:'none', border:'1px solid var(--gw-border)', borderRadius:8,
+              padding:'5px 12px', cursor:'pointer', color:'var(--gw-body)',
+              fontSize:12, display:'flex', alignItems:'center', gap:4, flexShrink:0
+            }}>← Proyectos</button>
+            <button onClick={async () => { showToast('🔄 Actualizando...', 'info'); await refreshItems(); const fresh = items.find(i => i.id === viewingProject.id); if (fresh) { setViewingProject(fresh); openProject(fresh); } showToast('✅ Datos actualizados'); }}
+              style={{background:'none', border:'1px solid var(--gw-border)', borderRadius:8, padding:'5px 10px', cursor:'pointer', color:'var(--gw-muted)', fontSize:12, flexShrink:0}}
+              title="Actualizar datos del proyecto">🔄</button>
+            <div style={{flex:1, minWidth:120}}>
+              <div style={{fontSize:16, fontWeight:700, color:'var(--gw-heading)', lineHeight:1.2}}>{p.fields?.Title}</div>
+              <div style={{fontSize:11, color:'var(--gw-muted)', marginTop:1}}>{p.fields?.NombreComercial ? `${p.fields.NombreComercial} · ` : ''}{p.fields?.NombredelaLLC || '—'}</div>
+            </div>
+            {getEtapaBadge(p.fields?.EtapaActual)}
+            {!editingForm && (
+              <button onClick={() => setShowDeleteConfirm(true)} style={{
+                padding:'5px 12px', background:'rgba(231,76,60,0.10)', color:'#E74C3C',
+                border:'1px solid rgba(231,76,60,0.30)', borderRadius:6, cursor:'pointer',
+                fontWeight:600, fontSize:11, flexShrink:0, whiteSpace:'nowrap',
+                transition:'background 0.15s'
+              }}
+                onMouseEnter={e => e.currentTarget.style.background='rgba(231,76,60,0.18)'}
+                onMouseLeave={e => e.currentTarget.style.background='rgba(231,76,60,0.10)'}
+              >🗑️ Dar de baja</button>
+            )}
           </div>
-
-          {getEtapaBadge(p.fields?.EtapaActual)}
-
-          {/* KPI pills */}
-          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-            <div style={{background:'var(--gw-page-bg)', border:'1px solid var(--gw-border)', borderRadius:10, padding:'6px 14px', textAlign:'center'}}>
-              <div style={{fontSize:10, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px'}}>Target</div>
-              <div style={{fontSize:14, color:'var(--gw-heading)', fontWeight:700}}>{fmtMoney(p.fields?.MontoTarget)}</div>
-            </div>
-            <div style={{background:'var(--gw-page-bg)', border:'1px solid var(--gw-border)', borderRadius:10, padding:'6px 14px', textAlign:'center'}}>
-              <div style={{fontSize:10, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px'}}>Levantado</div>
-              <div style={{fontSize:14, color:'var(--gw-success)', fontWeight:700}}>{fmtMoney(levantado)}</div>
-            </div>
-            <div style={{
-              background: overallPct === 100 ? 'rgba(46,204,138,0.12)' : 'var(--gw-page-bg)',
-              border:`1px solid ${overallPct === 100 ? 'var(--gw-success)' : 'var(--gw-border)'}`,
-              borderRadius:10, padding:'6px 14px', textAlign:'center'
-            }}>
-              <div style={{fontSize:10, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px'}}>Progreso</div>
-              <div style={{fontSize:14, color: overallPct===100 ? 'var(--gw-success)' : 'var(--gw-heading)', fontWeight:700}}>{overallPct}%</div>
-            </div>
-            <div style={{
-              background: fundingPct >= 100 ? 'rgba(46,204,138,0.12)' : 'var(--gw-page-bg)',
-              border:`1px solid ${fundingPct >= 100 ? 'var(--gw-success)' : 'var(--gw-border)'}`,
-              borderRadius:10, padding:'6px 14px', textAlign:'center'
-            }}>
-              <div style={{fontSize:10, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px'}}>Fondeo</div>
-              <div style={{fontSize:14, color: fundingPct>=100 ? 'var(--gw-success)' : 'var(--gw-warning)', fontWeight:700}}>{fundingPct}%</div>
-            </div>
+          {/* Row 2: KPI pills (compact) */}
+          <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
+            {[
+              { label:'Target', value:fmtMoney(p.fields?.MontoTarget), color:'var(--gw-heading)', bg:'var(--gw-page-bg)', border:'var(--gw-border)' },
+              { label:'Levantado', value:fmtMoney(levantado), color:'var(--gw-success)', bg:'var(--gw-page-bg)', border:'var(--gw-border)' },
+              { label:'Progreso', value:`${overallPct}%`, color: overallPct===100 ? 'var(--gw-success)' : 'var(--gw-heading)', bg: overallPct===100 ? 'rgba(46,204,138,0.12)' : 'var(--gw-page-bg)', border: overallPct===100 ? 'var(--gw-success)' : 'var(--gw-border)' },
+              { label:'Fondeo', value:`${fundingPct}%`, color: fundingPct>=100 ? 'var(--gw-success)' : 'var(--gw-warning)', bg: fundingPct>=100 ? 'rgba(46,204,138,0.12)' : 'var(--gw-page-bg)', border: fundingPct>=100 ? 'var(--gw-success)' : 'var(--gw-border)' },
+            ].map(kpi => (
+              <div key={kpi.label} style={{background:kpi.bg, border:`1px solid ${kpi.border}`, borderRadius:8, padding:'4px 12px', textAlign:'center'}}>
+                <div style={{fontSize:9, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.5px'}}>{kpi.label}</div>
+                <div style={{fontSize:13, color:kpi.color, fontWeight:700}}>{kpi.value}</div>
+              </div>
+            ))}
           </div>
-
-          {/* Dar de baja button */}
-          {!editingForm && (
-            <button onClick={() => setShowDeleteConfirm(true)} style={{
-              padding:'8px 16px', background:'rgba(231,76,60,0.10)', color:'#E74C3C',
-              border:'1px solid rgba(231,76,60,0.30)', borderRadius:8, cursor:'pointer',
-              fontWeight:600, fontSize:13, flexShrink:0, whiteSpace:'nowrap',
-              transition:'background 0.15s'
-            }}
-              onMouseEnter={e => e.currentTarget.style.background='rgba(231,76,60,0.18)'}
-              onMouseLeave={e => e.currentTarget.style.background='rgba(231,76,60,0.10)'}
-            >🗑️ Dar de baja</button>
-          )}
         </div>
 
         {/* ── Confirmation modal ── */}
@@ -3012,7 +3136,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
         {/* ── Tab bar (enhanced) ── */}
         <div style={{
           background:'var(--gw-card)', borderBottom:'2px solid var(--gw-border)',
-          padding:'0 24px', display:'flex', gap:0, overflowX:'auto',
+          padding:'0 16px', display:'flex', gap:0, overflowX:'auto', WebkitOverflowScrolling:'touch',
         }}>
           {tabs.map(tab => {
             const isActive = activeTab === tab.id;
@@ -3024,16 +3148,16 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                   if (tab.id === 'e4' || tab.id === 'e5' || tab.id === 'fondeo') loadAllInversionistas();
                 }}
                 style={{
-                  padding:'14px 18px 12px', border:'none', cursor:'pointer',
+                  padding:'10px 12px 8px', border:'none', cursor:'pointer',
                   background: isActive ? `${tab.color}12` : 'none',
                   borderBottom: isActive ? `3px solid ${tab.color}` : '3px solid transparent',
                   borderTop: isActive ? `2px solid ${tab.color}` : '2px solid transparent',
                   color: isActive ? tab.color : 'var(--gw-muted)',
-                  fontWeight: isActive ? 700 : 400, fontSize:13,
-                  display:'flex', alignItems:'center', gap:7, whiteSpace:'nowrap',
+                  fontWeight: isActive ? 700 : 400, fontSize:12,
+                  display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap',
                   transition:'all 0.2s', flexShrink:0
               }}>
-                <span style={{fontSize:15}}>{tab.icon}</span>
+                <span style={{fontSize:13}}>{tab.icon}</span>
                 <span>{tab.label}</span>
                 {pct !== null && (
                   <span style={{
@@ -3083,6 +3207,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14}}>
                   {[
                     {l:'Nombre del Proyecto', v:form.Title},
+                    {l:'Nombre Comercial', v:form.NombreComercial || '—'},
                     {l:'LLC', v:form.NombredelaLLC},
                     {l:'ID LLC / EIN', v:form.IdLLC || '—'},
                     {l:'Etapa Actual', v:form.EtapaActual},
@@ -3149,6 +3274,10 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                   <div className="form-group full">
                     <label className="form-label">Nombre del Proyecto *</label>
                     <input className="form-input" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} />
+                  </div>
+                  <div className="form-group full">
+                    <label className="form-label">Nombre Comercial</label>
+                    <input className="form-input" value={form.NombreComercial||''} onChange={e => setForm({...form, NombreComercial: e.target.value})} placeholder="Ej: Walgreens, CVS, Dollar General..." />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Nombre de la LLC</label>
@@ -3586,8 +3715,11 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                               </div>
                               <div>
                                 <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Broker / Referente</div>
-                                <input value={newProspect.Broker||''} onChange={e => setNewProspect(p=>({...p, Broker:e.target.value}))} placeholder="Nombre del broker"
-                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                                <select value={newProspect.Broker||''} onChange={e => setNewProspect(p=>({...p, Broker:e.target.value}))}
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}}>
+                                  <option value="">Seleccionar broker...</option>
+                                  {brokerChoices.map(b => <option key={b} value={b}>{b}</option>)}
+                                </select>
                               </div>
                             </div>
                             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14}}>
@@ -3667,6 +3799,18 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 </div>
                               </div>
                             )}
+                            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14}}>
+                              <div>
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Fecha Cierre Negociacion</div>
+                                <input type="date" value={newProspect.fechaCierreNeg||''} onChange={e => setNewProspect(p=>({...p,fechaCierreNeg:e.target.value}))}
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                              </div>
+                              <div>
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Observaciones</div>
+                                <input value={newProspect.observaciones||''} onChange={e => setNewProspect(p=>({...p,observaciones:e.target.value}))} placeholder="Notas sobre la vinculacion"
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                              </div>
+                            </div>
                             <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
                               <button onClick={() => { setShowAddInv(false); setNewProspect({Title:'',field_1:'juridica',field_2:'',field_3:'',field_4:'',field_5:'',field_6:'',field_7:'',field_9:'',Broker:'',porcentaje:'',montoInversion:'',gfdPct:30,finalDepositPct:70,gfd:'',finalDeposit:''}); }}
                                 style={{padding:'8px 16px', background:'none', border:'1px solid var(--gw-border)', borderRadius:8, fontSize:13, cursor:'pointer', color:'var(--gw-body)'}}>Cancelar</button>
@@ -3719,6 +3863,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Fecha Final Dep.</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>FD Esperado</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>FD Recibido</th>
+                                <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Total Recibido</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Acción</th>
                               </>}
                               {!isFondeo && <th style={{padding:'10px 8px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}></th>}
@@ -3911,7 +4056,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                         </div>
                                       </div>
                                     ) : (
-                                      <input type="number" min="0" step="100" value={part.gfdRecibido || ''} onChange={e => updatePartField(idx, 'gfdRecibido', e.target.value)}
+                                      <input type="number" min="0" step="100" value={part.gfdRecibido || ''} onChange={e => updatePartFieldLocal(idx, 'gfdRecibido', e.target.value)} onBlur={savePartToSP}
                                         placeholder="0" style={{padding:'4px 6px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:12, width:90, textAlign:'center'}} />
                                     )}
                                   </td>
@@ -3934,9 +4079,29 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                         </div>
                                       </div>
                                     ) : (
-                                      <input type="number" min="0" step="100" value={part.fdRecibido || ''} onChange={e => updatePartField(idx, 'fdRecibido', e.target.value)}
+                                      <input type="number" min="0" step="100" value={part.fdRecibido || ''} onChange={e => updatePartFieldLocal(idx, 'fdRecibido', e.target.value)} onBlur={savePartToSP}
                                         placeholder="0" style={{padding:'4px 6px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:12, width:90, textAlign:'center'}} />
                                     )}
+                                  </td>
+                                  {/* Total Recibido = GFD Recibido + FD Recibido with % vs Monto USD */}
+                                  <td style={{padding:'10px 8px', textAlign:'center'}}>
+                                    {(() => {
+                                      const gfdR = Number(part.gfdRecibido) || 0;
+                                      const fdR = Number(part.fdRecibido) || 0;
+                                      const totalRec = gfdR + fdR;
+                                      const montoTotal = Number(part.montoInversion) || 0;
+                                      const pct = montoTotal > 0 ? Math.min(100, Math.round(totalRec / montoTotal * 100)) : 0;
+                                      const isComplete = pct >= 100;
+                                      return (
+                                        <div>
+                                          <div style={{fontSize:13, fontWeight:800, color: isComplete ? 'var(--gw-success)' : 'var(--gw-heading)'}}>${totalRec.toLocaleString()}</div>
+                                          <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:1}}>{pct}% de ${montoTotal.toLocaleString()}</div>
+                                          <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:6, marginTop:4, width:90, margin:'4px auto 0'}}>
+                                            <div style={{width:`${pct}%`, height:'100%', borderRadius:99, background: isComplete ? 'var(--gw-success)' : pct >= 50 ? 'var(--gw-cyan)' : 'var(--gw-warning)', transition:'width 0.4s'}} />
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
                                   </td>
                                   {/* Acción: Abonos + Solicitar Pago + Confirmar Pago */}
                                   <td style={{padding:'10px 8px', textAlign:'center'}}>
@@ -4052,6 +4217,23 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                     </td>
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:12, fontWeight:700, color:'var(--gw-success)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.fdRecibido)||0),0).toLocaleString()}
+                                    </td>
+                                    <td style={{padding:'10px 12px', textAlign:'center'}}>
+                                      {(() => {
+                                        const totalRec = participaciones.reduce((s,p)=>s+(Number(p.gfdRecibido)||0)+(Number(p.fdRecibido)||0),0);
+                                        const totalMonto = participaciones.reduce((s,p)=>s+(Number(p.montoInversion)||0),0);
+                                        const pct = totalMonto > 0 ? Math.min(100, Math.round(totalRec / totalMonto * 100)) : 0;
+                                        const isComplete = pct >= 100;
+                                        return (
+                                          <div>
+                                            <div style={{fontSize:13, fontWeight:800, color: isComplete ? 'var(--gw-success)' : 'var(--gw-heading)'}}>${totalRec.toLocaleString()}</div>
+                                            <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:1}}>{pct}% completado</div>
+                                            <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:6, marginTop:4, width:90, margin:'4px auto 0'}}>
+                                              <div style={{width:`${pct}%`, height:'100%', borderRadius:99, background: isComplete ? 'var(--gw-success)' : pct >= 50 ? 'var(--gw-cyan)' : 'var(--gw-warning)', transition:'width 0.4s'}} />
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
                                     </td>
                                     <td />
                                   </>
@@ -4551,12 +4733,13 @@ function ActivosPage({ siteId }) {
     setTimeout(() => setToast(null), 3000);
   }
   
-  const [form, setForm] = useState({ 
-    Title:"", 
-    Tipodeactivo:"Oficina", 
-    Estado:"En evaluación", 
-    Ubicaci_x00f3_n:"", 
-    Ciudad:"", 
+  const [form, setForm] = useState({
+    Title:"",
+    NombreComercial:"",
+    Tipodeactivo:"Oficina",
+    Estado:"En evaluación",
+    Ubicaci_x00f3_n:"",
+    Ciudad:"",
     Estado_x002f_Provincia:"Florida",
     PrecioOferta:"",
     CapRateDisplay:"",
@@ -4570,12 +4753,13 @@ function ActivosPage({ siteId }) {
   });
 
   const resetForm = () => {
-    setForm({ 
-      Title:"", 
-      Tipodeactivo:"Oficina", 
-      Estado:"En evaluación", 
-      Ubicaci_x00f3_n:"", 
-      Ciudad:"", 
+    setForm({
+      Title:"",
+      NombreComercial:"",
+      Tipodeactivo:"Oficina",
+      Estado:"En evaluación",
+      Ubicaci_x00f3_n:"",
+      Ciudad:"",
       Estado_x002f_Provincia:"Florida",
       PrecioOferta:"",
       CapRateDisplay:"",
@@ -4684,6 +4868,7 @@ function ActivosPage({ siteId }) {
     setEditingItem(item);
     setForm({
       Title: item.fields.Title || "",
+      NombreComercial: item.fields.NombreComercial || "",
       Tipodeactivo: item.fields.Tipodeactivo || "Oficina",
       Estado: item.fields.Estado || "En evaluación",
       Ubicaci_x00f3_n: item.fields.Ubicaci_x00f3_n || "",
@@ -4745,6 +4930,7 @@ function ActivosPage({ siteId }) {
       // Preparar datos para enviar a SharePoint
       const dataToSend = {
         Title: form.Title,
+        NombreComercial: form.NombreComercial || null,
         Tipodeactivo: form.Tipodeactivo,
         Estado: form.Estado,
         Ubicaci_x00f3_n: form.Ubicaci_x00f3_n,
@@ -4820,7 +5006,7 @@ function ActivosPage({ siteId }) {
             )}
             {filtered.map(a => (
               <tr key={a.id}>
-                <td style={{fontWeight:600}}>{a.fields.Title}</td>
+                <td><div style={{fontWeight:600}}>{a.fields.Title}</div>{a.fields.NombreComercial && <div style={{fontSize:11, color:'var(--gw-muted)'}}>{a.fields.NombreComercial}</div>}</td>
                 <td style={{fontSize:12}}>{a.fields.Tipodeactivo}</td>
                 <td>{getEtapaBadge(a.fields.Estado)}</td>
                 <td style={{fontSize:12, color:'var(--gw-muted)'}}>{a.fields.Ciudad}, {a.fields.Estado_x002f_Provincia}</td>
@@ -4856,6 +5042,10 @@ function ActivosPage({ siteId }) {
                 <div className="form-group full">
                   <label className="form-label">Nombre del Activo *</label>
                   <input className="form-input" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} required />
+                </div>
+                <div className="form-group full">
+                  <label className="form-label">Nombre Comercial</label>
+                  <input className="form-input" value={form.NombreComercial||''} onChange={e => setForm({...form, NombreComercial: e.target.value})} placeholder="Ej: Walgreens, CVS, Dollar General..." />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Tipo de Activo *</label>
@@ -5192,6 +5382,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
       field_20: f.field_20 || '',
       Broker: f.Broker || '',
       Banco2: f.Banco2 || '', TipoCuenta2: f.TipoCuenta2 || '', NumeroCuenta2: f.NumeroCuenta2 || '', Routing2: f.Routing2 || '', Titular2: f.Titular2 || '',
+      ProyectoRelacionado: f.ProyectoRelacionado || '',
     });
     setEditingInv(true);
   }
@@ -5200,29 +5391,41 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
     if (!viewingInv) return;
     setSavingInv(true);
     try {
-      await patchGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items/${viewingInv.id}`, {
-        fields: {
-          Title:   invForm.Title,
-          field_1: invForm.field_1,
-          field_2: invForm.field_2,
-          field_3: invForm.field_3,
-          field_4: invForm.field_4,
-          field_5: invForm.field_5,
-          field_6: invForm.field_6,
-          field_7: invForm.field_7,
-          field_8: invForm.field_8,
-          field_9: invForm.field_9,
-          field_10: invForm.field_10,
-          field_14: invForm.field_14,
-          field_15: invForm.field_15,
-          field_16: invForm.field_16,
-          field_17: invForm.field_17,
-          field_18: invForm.field_18,
-          field_20: invForm.field_20,
-          Broker: invForm.Broker,
-          Banco2: invForm.Banco2, TipoCuenta2: invForm.TipoCuenta2, NumeroCuenta2: invForm.NumeroCuenta2, Routing2: invForm.Routing2, Titular2: invForm.Titular2,
-        }
+      // Build fields object, only including non-empty values and using null for cleared fields
+      const fields = {};
+      const fieldMap = {
+        Title: invForm.Title, field_1: invForm.field_1, field_2: invForm.field_2,
+        field_3: invForm.field_3, field_4: invForm.field_4, field_5: invForm.field_5,
+        field_6: invForm.field_6, field_7: invForm.field_7, field_8: invForm.field_8,
+        field_9: invForm.field_9, field_10: invForm.field_10,
+        field_14: invForm.field_14, field_15: invForm.field_15,
+        field_16: invForm.field_16, field_17: invForm.field_17,
+        field_18: invForm.field_18, field_20: invForm.field_20,
+        Broker: invForm.Broker,
+        Banco2: invForm.Banco2, TipoCuenta2: invForm.TipoCuenta2,
+        NumeroCuenta2: invForm.NumeroCuenta2, Routing2: invForm.Routing2, Titular2: invForm.Titular2,
+        ProyectoRelacionado: invForm.ProyectoRelacionado,
+      };
+      Object.entries(fieldMap).forEach(([k, v]) => {
+        if (v !== undefined && v !== '') fields[k] = v;
+        else if (v === '' && viewingInv.fields?.[k]) fields[k] = null; // Clear previously set value
       });
+      console.log('[GWealth] Saving investor fields:', JSON.stringify(Object.keys(fields)));
+
+      // Try saving all fields first; if it fails, try core fields only
+      try {
+        await patchGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items/${viewingInv.id}`, { fields });
+      } catch(e1) {
+        console.warn('[GWealth] Full save failed, trying core fields only:', e1.message);
+        // Retry with only standard fields (exclude potentially missing columns)
+        const coreFields = {};
+        ['Title','field_1','field_2','field_3','field_4','field_5','field_6','field_7','field_8','field_9','field_10','field_14','field_15','field_16','field_17','field_18','field_20','Broker','ProyectoRelacionado'].forEach(k => {
+          if (fields[k] !== undefined) coreFields[k] = fields[k];
+        });
+        await patchGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items/${viewingInv.id}`, { fields: coreFields });
+        showToast('⚠️ Guardado parcial: algunos campos adicionales no existen en SharePoint', 'error');
+      }
+
       const res = await callGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items?$expand=fields&$top=500`);
       const updated = res.value || [];
       setItems(updated);
@@ -5231,6 +5434,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
       setEditingInv(false);
       showToast('✅ Inversionista actualizado correctamente');
     } catch(e) {
+      console.error('[GWealth] Save investor error:', e);
       showToast('❌ Error al guardar: ' + e.message, 'error');
     } finally { setSavingInv(false); }
   }
@@ -5297,6 +5501,8 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
   }
 
   function openInv(item) {
+    console.log('[GWealth] Opening investor:', item.id, item.fields?.Title);
+    setEditingInv(false); // Reset edit mode
     setViewingInv(item);
     setActiveTab('general');
     loadProyectos();
@@ -5504,7 +5710,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
 
                 {/* Bancario 2 */}
                 <div style={{fontSize:13, fontWeight:700, color:'var(--gw-cyan)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:12}}>Cuenta Bancaria Adicional</div>
-                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:20}}>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14}}>
                   {[
                     { key:'Banco2', label:'Banco' },
                     { key:'TipoCuenta2', label:'Tipo de Cuenta' },
@@ -5519,6 +5725,17 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                           background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                     </div>
                   ))}
+                  <div>
+                    <div style={{fontSize:11, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>Proyecto Relacionado</div>
+                    <select value={invForm.ProyectoRelacionado||''} onChange={e => setInvForm(p=>({...p, ProyectoRelacionado:e.target.value}))}
+                      style={{width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid var(--gw-border)',
+                        background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}}>
+                      <option value="">Seleccionar proyecto...</option>
+                      {portfolio.map(({proyecto}) => (
+                        <option key={proyecto.id} value={proyecto.fields?.Title || ''}>{proyecto.fields?.Title || '—'}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Observaciones */}
@@ -5546,14 +5763,19 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
             {!editingInv && activeTab === 'general' && (
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:20}}>
 
+                {/* DEBUG: show raw viewingInv data */}
+                <div style={{gridColumn:'1 / -1', background:'#fff3cd', padding:'8px 12px', borderRadius:8, fontSize:11, color:'#856404', display:'none'}}>
+                  DEBUG: viewingInv.id={viewingInv?.id} | Title={viewingInv?.fields?.Title} | field_2={viewingInv?.fields?.field_2}
+                </div>
+
                 {/* Contact card */}
                 <div style={{background:'var(--gw-card)', borderRadius:16, border:'1px solid var(--gw-border)', borderTop:'3px solid var(--gw-cyan)', padding:'24px', display:'flex', flexDirection:'column', gap:12}}>
                   <div style={{fontSize:14, fontWeight:700, color:'var(--gw-heading)', marginBottom:4}}>📞 Información de Contacto</div>
-                  <FieldRow label="Nombre / Razón Social" value={f.Title}   icon="🪪" />
-                  <FieldRow label="Correo Electrónico"     value={f.field_2} icon="✉️" />
-                  <FieldRow label="Teléfono"               value={f.field_3} icon="📞" />
+                  <FieldRow label="Nombre / Razón Social" value={viewingInv?.fields?.Title}   icon="🪪" />
+                  <FieldRow label="Correo Electrónico"     value={viewingInv?.fields?.field_2} icon="✉️" />
+                  <FieldRow label="Teléfono"               value={viewingInv?.fields?.field_3} icon="📞" />
                   <FieldRow label="Tipo de Persona"        value={tipo==='juridica' ? 'Persona Jurídica / LLC' : 'Persona Natural'} icon={tipo==='juridica'?'🏢':'👤'} />
-                  {!f.field_2 && !f.field_3 && (
+                  {!viewingInv?.fields?.field_2 && !viewingInv?.fields?.field_3 && (
                     <div style={{color:'var(--gw-muted)', fontSize:13, textAlign:'center', padding:'8px 0', fontStyle:'italic'}}>Sin datos de contacto registrados</div>
                   )}
                 </div>
@@ -5561,13 +5783,16 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                 {/* Address card */}
                 <div style={{background:'var(--gw-card)', borderRadius:16, border:'1px solid var(--gw-border)', borderTop:'3px solid var(--gw-success)', padding:'24px', display:'flex', flexDirection:'column', gap:12}}>
                   <div style={{fontSize:14, fontWeight:700, color:'var(--gw-heading)', marginBottom:4}}>📍 Dirección</div>
-                  <FieldRow label="Ciudad"          value={f.field_5} icon="🏙️" />
-                  <FieldRow label="Estado / Prov."  value={f.field_6} icon="🗺️" />
-                  <FieldRow label="País"            value={f.field_7} icon="🌎" />
-                  <FieldRow label="Dirección"       value={f.field_4} icon="🏠" />
-                  <FieldRow label="Código Postal"   value={f.field_8} icon="📮" />
-                  {!f.field_5 && !f.field_6 && !f.field_7 && (
-                    <div style={{color:'var(--gw-muted)', fontSize:13, textAlign:'center', padding:'8px 0', fontStyle:'italic'}}>Sin dirección registrada</div>
+                  <FieldRow label="Ciudad"          value={viewingInv?.fields?.field_5} icon="🏙️" />
+                  <FieldRow label="Estado / Prov."  value={viewingInv?.fields?.field_6} icon="🗺️" />
+                  <FieldRow label="País"            value={viewingInv?.fields?.field_7} icon="🌎" />
+                  <FieldRow label="Dirección"       value={viewingInv?.fields?.field_4} icon="🏠" />
+                  <FieldRow label="Código Postal"   value={viewingInv?.fields?.field_8} icon="📮" />
+                  {!f.field_5 && !f.field_6 && !f.field_7 && !f.field_4 && (
+                    <div style={{color:'var(--gw-muted)', fontSize:13, textAlign:'center', padding:'24px 0', fontStyle:'italic', display:'flex', flexDirection:'column', alignItems:'center', gap:8}}>
+                      <span style={{fontSize:28, opacity:0.4}}>📍</span>
+                      Sin dirección registrada
+                    </div>
                   )}
                 </div>
 
@@ -5735,7 +5960,6 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                 </div>
               );
             })()}
-            )}
 
           </div>
         </div>{/* end scrollable content */}
