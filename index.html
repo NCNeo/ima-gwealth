@@ -2449,10 +2449,26 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       NumeroCuentaProyecto: item.fields.NumeroCuentaProyecto || "",
       RoutingProyecto: item.fields.RoutingProyecto || ""
     });
-    // Load participaciones blob
+    // Load participaciones blob and refresh investor data
     try {
       const partRaw = item.fields?.Participaciones;
-      setParticipaciones(partRaw ? JSON.parse(partRaw) : []);
+      let parts = partRaw ? JSON.parse(partRaw) : [];
+      // Refresh investor data from allInversionistas (name, type, estado)
+      parts = parts.map(p => {
+        const inv = allInversionistas.find(i => String(i.id) === String(p.invId));
+        if (inv) {
+          const f = inv.fields || {};
+          return {
+            ...p,
+            nombre: f.Title || p.nombre,
+            email: f.field_2 || p.email,
+            tipo: (f.field_1 || '').toLowerCase().includes('jur') ? 'juridica' : (f.field_1 ? 'natural' : p.tipo),
+            esProspecto: f.Estado !== 'Activo',
+          };
+        }
+        return p;
+      });
+      setParticipaciones(parts);
     } catch(e) { setParticipaciones([]); }
     // Load approval hitos for this project
     loadProjectHitos(item.id);
@@ -2812,8 +2828,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   }
 
   async function addProspecto() {
-    if (!newProspect.Title || !newProspect.porcentaje) return;
-    if (!newProspect.field_2 || !newProspect.field_3) { showToast('❌ Correo electrónico y teléfono son obligatorios', 'error'); return; }
+    if (!newProspect.Title) { showToast('❌ Nombre / Razón Social es obligatorio', 'error'); return; }
+    if (!newProspect.field_3) { showToast('❌ Teléfono es obligatorio', 'error'); return; }
     setSavingPart(true);
     try {
       // 1. Crear inversionista en SharePoint con estado "Prospecto"
@@ -3724,13 +3740,13 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                             </div>
                             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14}}>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Correo Electrónico *</div>
-                                <input type="email" value={newProspect.field_2} onChange={e => setNewProspect(p=>({...p, field_2:e.target.value}))} placeholder="correo@empresa.com" required
-                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:`1px solid ${!newProspect.field_2 ? 'var(--gw-warning)' : 'var(--gw-border)'}`, background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Correo Electrónico</div>
+                                <input type="email" value={newProspect.field_2} onChange={e => setNewProspect(p=>({...p, field_2:e.target.value}))} placeholder="correo@empresa.com"
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                               </div>
                               <div>
                                 <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Teléfono *</div>
-                                <input value={newProspect.field_3} onChange={e => setNewProspect(p=>({...p, field_3:e.target.value}))} placeholder="+1 (555) 123-4567" required
+                                <input value={newProspect.field_3} onChange={e => setNewProspect(p=>({...p, field_3:e.target.value}))} placeholder="+1 (555) 123-4567"
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:`1px solid ${!newProspect.field_3 ? 'var(--gw-warning)' : 'var(--gw-border)'}`, background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                               </div>
                             </div>
@@ -3760,14 +3776,14 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                             <div style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)', marginBottom:10, marginTop:6}}>Condiciones de Inversión</div>
                             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14}}>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Monto Inversión (USD) *</div>
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Monto Inversión (USD)</div>
                                 <input type="number" min="0" step="1000" value={newProspect.montoInversion}
                                   onChange={e => { const m = e.target.value; const gp = newProspect.gfdPct||30; const fp = newProspect.finalDepositPct||70; setNewProspect(p=>({...p, montoInversion:m, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''})); }}
                                   placeholder="100,000"
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                               </div>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación *</div>
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación</div>
                                 <input type="number" min="0" max="100" step="0.1" value={newProspect.porcentaje}
                                   onChange={e => setNewProspect(p=>({...p, porcentaje:e.target.value}))} placeholder="25.5"
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
@@ -3814,8 +3830,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                             <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
                               <button onClick={() => { setShowAddInv(false); setNewProspect({Title:'',field_1:'juridica',field_2:'',field_3:'',field_4:'',field_5:'',field_6:'',field_7:'',field_9:'',Broker:'',porcentaje:'',montoInversion:'',gfdPct:30,finalDepositPct:70,gfd:'',finalDeposit:''}); }}
                                 style={{padding:'8px 16px', background:'none', border:'1px solid var(--gw-border)', borderRadius:8, fontSize:13, cursor:'pointer', color:'var(--gw-body)'}}>Cancelar</button>
-                              <button onClick={addProspecto} disabled={!newProspect.Title || !newProspect.porcentaje || savingPart}
-                                style={{padding:'8px 18px', background:'var(--gw-success)', color:'white', border:'none', borderRadius:8, fontSize:13, cursor:'pointer', fontWeight:600, opacity:(!newProspect.Title||!newProspect.porcentaje)?0.5:1}}>
+                              <button onClick={addProspecto} disabled={!newProspect.Title || !newProspect.field_3 || savingPart}
+                                style={{padding:'8px 18px', background:'var(--gw-success)', color:'white', border:'none', borderRadius:8, fontSize:13, cursor:'pointer', fontWeight:600, opacity:(!newProspect.Title||!newProspect.field_3)?0.5:1}}>
                                 {savingPart ? 'Creando...' : '✨ Crear prospecto y vincular'}</button>
                             </div>
                           </div>
@@ -3900,7 +3916,9 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                   {/* Estado */}
                                   <td style={{padding:'10px 12px', textAlign:'center'}}>
                                     {(() => {
-                                      const est = part.esProspecto ? 'Prospecto' : 'Activo';
+                                      const invData = allInversionistas.find(i => i.id === part.invId);
+                                      const invEstado = invData?.fields?.Estado || (part.esProspecto ? 'Prospecto' : 'Activo');
+                                      const est = invEstado === 'Activo' ? 'Activo' : 'Prospecto';
                                       const isActivo = est === 'Activo';
                                       return (
                                         <span style={{
@@ -4717,6 +4735,7 @@ function ActivosPage({ siteId }) {
   const [saving, setSaving] = useState(false);
   const [evaluadores, setEvaluadores] = useState([]);
   const [loadingEvaluadores, setLoadingEvaluadores] = useState(false);
+  const [brokerRefChoices, setBrokerRefChoices] = useState([]);
   const [estados, setEstados] = useState([]);
   const [loadingEstados, setLoadingEstados] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -4806,9 +4825,19 @@ function ActivosPage({ siteId }) {
           // Fallback a valores por defecto si no se encuentra
           setEstados(["Etapa 1: Evaluación", "Etapa 2: LOI & BP", "Etapa 3: Onboarding", "Etapa 4: Inversionistas", "Etapa 5: Due Diligence", "Etapa 6: Fondeo", "Etapa 7: Post-Closing", "Descartado"]);
         }
+        // Buscar columna BrokerReferente
+        const brokerRefCol = res.value.find(col =>
+          col.name === 'BrokerReferente' || col.displayName === 'BrokerReferente' || col.displayName === 'Broker Referente' || col.name === 'Broker_x0020_Referente'
+        );
+        if (brokerRefCol && brokerRefCol.choice) {
+          setBrokerRefChoices(brokerRefCol.choice.choices || []);
+        } else {
+          setBrokerRefChoices([]);
+        }
       } catch(e) {
         console.error('Error cargando columnas:', e);
         setEvaluadores([]);
+        setBrokerRefChoices([]);
         setEstados(["Etapa 1: Evaluación", "Etapa 2: LOI & BP", "Etapa 3: Onboarding", "Etapa 4: Inversionistas", "Etapa 5: Due Diligence", "Etapa 6: Fondeo", "Etapa 7: Post-Closing", "Descartado"]);
       } finally {
         setLoadingEvaluadores(false);
@@ -4938,7 +4967,6 @@ function ActivosPage({ siteId }) {
         Estado_x002f_Provincia: form.Estado_x002f_Provincia,
         PrecioOferta: form.PrecioOferta ? parseFloat(form.PrecioOferta) : null,
         "CapRate_x0028__x0025__x0029_": form.CapRateDisplay ? parseFloat(form.CapRateDisplay) / 100 : null,
-        Evaluador: form.EvaluadorName || null,
         CriterioLocation: form.CriterioLocation,
         CriterioTenant: form.CriterioTenant,
         CriterioTesisdeinversi_x00f3_n: form.CriterioTesisdeinversi_x00f3_n,
@@ -5089,22 +5117,6 @@ function ActivosPage({ siteId }) {
                   <input className="form-input" type="number" step="0.1" min="0" max="100" value={form.CapRateDisplay} onChange={e => setForm({...form, CapRateDisplay: e.target.value})} placeholder="Ej: 20 para 20%" />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Evaluador *</label>
-                  <select 
-                    className="form-select" 
-                    value={form.EvaluadorName} 
-                    onChange={e => setForm({...form, EvaluadorName: e.target.value})}
-                    disabled={loadingEvaluadores}
-                  >
-                    <option value="">
-                      {loadingEvaluadores ? 'Cargando opciones...' : 'Seleccione un evaluador...'}
-                    </option>
-                    {evaluadores.map(evaluador => (
-                      <option key={evaluador} value={evaluador}>{evaluador}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
                   <label className="form-label">Fecha de Identificación *</label>
                   <input className="form-input" type="date" value={form.Fechadeidentificaci_x00f3_n} onChange={e => setForm({...form, Fechadeidentificaci_x00f3_n: e.target.value})} />
                 </div>
@@ -5128,7 +5140,12 @@ function ActivosPage({ siteId }) {
                 </div>
                 <div className="form-group full">
                   <label className="form-label">Broker Referente</label>
-                  <input className="form-input" value={form.BrokerReferente} onChange={e => setForm({...form, BrokerReferente: e.target.value})} placeholder="Nombre del broker" />
+                  <select className="form-select" value={form.BrokerReferente} onChange={e => setForm({...form, BrokerReferente: e.target.value})}>
+                    <option value="">Seleccione un broker...</option>
+                    {brokerRefChoices.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="form-group full">
                   <label className="form-label">Observaciones de Evaluación</label>
@@ -5304,6 +5321,19 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
   const [projDocs, setProjDocs]     = useState({});
   const invFileRef = React.useRef(null);
   const [uploadingInvFile, setUploadingInvFile] = useState(false);
+  const [invBrokerChoices, setInvBrokerChoices] = useState([]);
+
+  // Load Broker choices from SharePoint columns
+  useEffect(() => {
+    async function loadBrokerOpts() {
+      try {
+        const res = await callGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/columns`);
+        const brokerCol = (res.value || []).find(c => c.name === 'Broker' || c.displayName === 'Broker' || c.displayName === 'Broker / Referente');
+        if (brokerCol?.choice?.choices) setInvBrokerChoices(brokerCol.choice.choices);
+      } catch(e) { console.warn('Could not load broker choices:', e.message); }
+    }
+    if (siteId) loadBrokerOpts();
+  }, [siteId]);
 
   async function loadInvDocs(invId) {
     setLoadingDocs(true);
@@ -5610,13 +5640,34 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
               ))}
             </div>
 
-            {/* Edit button */}
+            {/* Action buttons */}
             {!editingInv && (
-              <button onClick={() => openEditInv(viewingInv)} style={{
-                padding:'8px 16px', background:'var(--gw-cyan)', color:'white',
-                border:'none', borderRadius:8, cursor:'pointer', fontWeight:600,
-                fontSize:13, flexShrink:0, whiteSpace:'nowrap'
-              }}>✏️ Editar</button>
+              <div style={{display:'flex', gap:8, flexShrink:0}}>
+                {(f.Estado === 'Prospecto' || !f.Estado) && (
+                  <button onClick={async () => {
+                    if (!confirm('¿Confirmas que la información del inversionista está completa y deseas activarlo? Esto creará sus carpetas en SharePoint.')) return;
+                    try {
+                      await patchGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items/${viewingInv.id}`, {
+                        fields: { Estado: 'Activo' }
+                      });
+                      setViewingInv(prev => ({...prev, fields: {...prev.fields, Estado: 'Activo'}}));
+                      setItems(prev => prev.map(i => i.id === viewingInv.id ? {...i, fields: {...i.fields, Estado: 'Activo'}} : i));
+                      showToast('✅ Inversionista activado — carpetas en creación');
+                    } catch(err) {
+                      showToast('❌ Error: ' + err.message, 'error');
+                    }
+                  }} style={{
+                    padding:'8px 16px', background:'var(--gw-success)', color:'white',
+                    border:'none', borderRadius:8, cursor:'pointer', fontWeight:600,
+                    fontSize:13, whiteSpace:'nowrap', transition:'all 0.2s'
+                  }}>✅ Activar Inversionista</button>
+                )}
+                <button onClick={() => openEditInv(viewingInv)} style={{
+                  padding:'8px 16px', background:'var(--gw-cyan)', color:'white',
+                  border:'none', borderRadius:8, cursor:'pointer', fontWeight:600,
+                  fontSize:13, whiteSpace:'nowrap'
+                }}>✏️ Editar</button>
+              </div>
             )}
           </div>
 
@@ -5654,10 +5705,8 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:20}}>
                   {[
                     { key:'Title',   label:'Nombre / Razón Social' },
-                    { key:'field_1', label:'Tipo de Persona' },
                     { key:'field_9', label:'Representante Legal' },
                     { key:'field_10',label:'Estado KYC / DD' },
-                    { key:'Broker',  label:'Broker / Referente' },
                   ].map(({key,label}) => (
                     <div key={key}>
                       <div style={{fontSize:11, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>{label}</div>
@@ -5666,6 +5715,27 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                           background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                     </div>
                   ))}
+                  <div>
+                    <div style={{fontSize:11, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>Tipo de Persona</div>
+                    <select value={invForm.field_1||''} onChange={e => setInvForm(p=>({...p, field_1:e.target.value}))}
+                      style={{width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid var(--gw-border)',
+                        background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}}>
+                      <option value="">Seleccionar...</option>
+                      <option value="Persona Jurídica / LLC">Persona Jurídica / LLC</option>
+                      <option value="Persona Natural">Persona Natural</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>Broker / Referente</div>
+                    <select value={invForm.Broker||''} onChange={e => setInvForm(p=>({...p, Broker:e.target.value}))}
+                      style={{width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid var(--gw-border)',
+                        background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}}>
+                      <option value="">Seleccionar broker...</option>
+                      {invBrokerChoices.map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Contacto */}
