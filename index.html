@@ -954,8 +954,8 @@ const DOCUMENT_LIBRARY = {
 const SECTION_FOLDERS = {
   e2: [{ name: '02 Finanzas', icon: '💰' }],
   e3: [{ name: '01 Legal', icon: '⚖️' }, { name: '05 Marketing', icon: '📣' }],
-  e4: [{ name: '04 Inversionistas', icon: '👥' }],
-  e5: [{ name: '03 Due Dilligence', icon: '🔍' }],
+  e4: [{ name: '04 Inversionistas', icon: '👥' }, { name: '03 Due Dilligence', icon: '🔍' }],
+  e5: [{ name: '01 Legal', icon: '⚖️' }, { name: '02 Finanzas', icon: '💰' }],
   fondeo: [{ name: '02 Finanzas', icon: '💰' }],
   post_closing: [{ name: '05 Marketing', icon: '📣' }],
 };
@@ -987,28 +987,27 @@ const PROJECT_SECTIONS = [
     ]
   },
   {
-    id: 'e4', label: 'E4 — Inversionistas', icon: '🤝', color: '#1A6B3A',
+    id: 'e4', label: 'E4 — Investors', icon: '🤝', color: '#1A6B3A',
     milestones: [
-      { id: 'inv_completo', label: 'Inversionistas confirmados y documentación completa', desc: 'Todos los inversionistas activos con TS firmado, GFD y Final Deposit recibidos', required: true, autoCheck: 'e4' },
+      { id: 'inv_completo', label: 'Investors confirmed and documentation complete', desc: 'All investors active with signed TS, GFD and Final Deposit received', required: true, autoCheck: 'e4' },
     ]
   },
   {
-    id: 'e5', label: 'E5 — Due Diligence', icon: '🔍', color: '#6B2DA4',
+    id: 'e5', label: 'E5 — Purchase', icon: '🏛️', color: '#6B2DA4',
     milestones: [
-      { id: 'dd_completo', label: 'Due Diligence completado para todos los inversionistas', desc: 'Todos los inversionistas con DD, TS y SA firmados', required: true, autoCheck: 'e5' },
+      { id: 'purchase_completo', label: 'Purchase documents complete', desc: 'All Financing, Due Diligence and Legal Asset documents completed', required: true, autoCheck: 'e5' },
     ]
   },
   {
-    id: 'fondeo', label: 'E6 — Fondeo', icon: '💰', color: '#C8960C',
+    id: 'fondeo', label: 'E6 — Funding', icon: '💰', color: '#C8960C',
     milestones: [
-      { id: 'fondeo_completo', label: 'Fondeo completado para todos los inversionistas', desc: 'Todos los GFD y Final Deposits recibidos', required: true, autoCheck: 'fondeo' },
+      { id: 'fondeo_completo', label: 'Funding completed for all investors', desc: 'All GFD and Final Deposits received', required: true, autoCheck: 'fondeo' },
     ]
   },
   {
     id: 'post_closing', label: 'E7 — Post-Closing', icon: '🎉', color: '#2ECC8A',
     milestones: [
       { id: 'cierre_ejecutado',      label: 'Cierre ejecutado',                     desc: 'Transacción completada y titulada — proyecto activo', required: true },
-      { id: 'confirmaciones_emitidas', label: 'Confirmaciones de fondos emitidas',  desc: 'Carta de confirmación de recepción a cada inversionista', required: true },
       { id: 'momento_wow',           label: '"Momento wow" enviado',                desc: 'Email personalizado de cierre — Flujo 5 Power Automate', required: true },
       { id: 'distribuciones',        label: 'Distribuciones programadas',           desc: 'Cronograma de distribuciones trimestrales configurado', required: false },
     ]
@@ -1393,9 +1392,9 @@ function getEtapaBadge(etapa) {
     "Etapa 1: Evaluación": { cls: "badge-orange", label: "E1 Evaluación" },
     "Etapa 2: LOI & BP": { cls: "badge-orange", label: "E2 LOI & BP" },
     "Etapa 3: Onboarding": { cls: "badge-orange", label: "E3 Onboarding" },
-    "Etapa 4: Inversionistas": { cls: "badge-blue", label: "E4 Inversionistas" },
-    "Etapa 5: Due Diligence": { cls: "badge-blue", label: "E5 Due Diligence" },
-    "Etapa 6: Fondeo": { cls: "badge-gold", label: "E6 Fondeo" },
+    "Etapa 4: Inversionistas": { cls: "badge-blue", label: "E4 Investors" },
+    "Etapa 5: Due Diligence": { cls: "badge-blue", label: "E5 Purchase" },
+    "Etapa 6: Fondeo": { cls: "badge-gold", label: "E6 Funding" },
     "Etapa 7: Post-Closing": { cls: "badge-green", label: "E7 Post-Closing" },
     "Etapa 2: Negociación": { cls: "badge-orange", label: "E2 LOI & BP" },
     "Etapa 3: Due Diligence": { cls: "badge-orange", label: "E5 Due Diligence" },
@@ -2162,7 +2161,9 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   const [search, setSearch] = useState("");
   const [viewingProject, setViewingProject] = useState(null);
   const [activeTab, setActiveTab] = useState('general');
-  const [fondeoSubTab, setFondeoSubTab] = useState('fondeo'); // 'fondeo' | 'closing'
+  const [fondeoSubTab, setFondeoSubTab] = useState('fondeo');
+  const [investorsSubTab, setInvestorsSubTab] = useState('registration'); // 'registration' | 'documentation'
+  const [purchaseSubTab, setPurchaseSubTab] = useState('financing'); // 'financing' | 'due_diligence' | 'legal_asset'
   const [milestones, setMilestones] = useState({});
   const [notes, setNotes] = useState({});
   const [editingForm, setEditingForm] = useState(false);
@@ -2171,6 +2172,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   const [toast, setToast] = useState(null);
   // Folder resolution via Graph API
   const [folderUrl, setFolderUrl] = useState(null);
+  const [activoData, setActivoData] = useState(null);
   const [resolvingFolder, setResolvingFolder] = useState(false);
   const driveIdRef = useRef(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -2418,10 +2420,23 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     setViewingProject(item);
     setActiveTab('general');
     setFondeoSubTab('fondeo');
+    setInvestorsSubTab('registration');
+    setPurchaseSubTab('financing');
     setEditingForm(false);
     setFolderUrl(null);
+    setActivoData(null);
     // Resolve folder URL in background
     resolveProjectFolder(item.fields.Title || '');
+    // Load activo data (Equity, Loan) in background
+    (async () => {
+      try {
+        const activoId = await findActivoIdForProject(item);
+        if (activoId) {
+          const res = await callGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}?$expand=fields`);
+          setActivoData(res.fields || null);
+        }
+      } catch(e) { console.warn('[GWealth] Could not load activo data:', e.message); }
+    })();
     // Parse milestones + notes from JSON blob
     const blob = item.fields?.Milestones
       ? (typeof item.fields.Milestones === 'string' ? JSON.parse(item.fields.Milestones) : item.fields.Milestones)
@@ -2432,6 +2447,14 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       if (k.startsWith('notes_')) nts[k.replace('notes_', '')] = blob[k];
       else mils[k] = blob[k];
     });
+    // Migrate legacy milestone names
+    if (mils.dd_completo && !mils.purchase_completo) {
+      mils.purchase_completo = mils.dd_completo;
+      delete mils.dd_completo;
+    }
+    if (mils.confirmaciones_emitidas) {
+      delete mils.confirmaciones_emitidas; // Removed milestone
+    }
     setMilestones(mils);
     setNotes(nts);
     setForm({
@@ -2539,6 +2562,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   }
 
   // Map section IDs to etapa names
+  // Keep Spanish values for SharePoint Choice column compatibility
   const sectionToEtapa = {
     'e2': 'Etapa 2: LOI & BP',
     'e3': 'Etapa 3: Onboarding',
@@ -2756,9 +2780,6 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
         const allE4Done = updated.every(p =>
           p.tsEstado === 'firmado' && p.gfdEstado === 'recibido' && p.fdEstado === 'recibido'
         );
-        const allE5Done = updated.every(p =>
-          p.ddEstado === 'firmado' && p.tsEstado === 'firmado' && p.ppmEstado === 'firmado' && p.oaEstado === 'firmado'
-        );
         const allFondeoDone = updated.every(p =>
           Number(p.gfdRecibido) >= Number(p.gfd) && Number(p.fdRecibido) >= Number(p.finalDeposit) && Number(p.gfd) > 0 && Number(p.finalDeposit) > 0
         );
@@ -2766,8 +2787,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           let next = { ...prev };
           if (allE4Done && !prev.inv_completo) next.inv_completo = true;
           if (!allE4Done && prev.inv_completo) next.inv_completo = false;
-          if (allE5Done && !prev.dd_completo) next.dd_completo = true;
-          if (!allE5Done && prev.dd_completo) next.dd_completo = false;
+          // purchase_completo is managed manually via closing doc checkboxes, not auto-checked here
           if (allFondeoDone && !prev.fondeo_completo) next.fondeo_completo = true;
           if (!allFondeoDone && prev.fondeo_completo) next.fondeo_completo = false;
           return next;
@@ -2779,7 +2799,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   }
 
   async function addParticipacion() {
-    if (!newPart.invId || !newPart.porcentaje) return;
+    if (!newPart.invId || !newPart.montoInversion) return;
     setSavingPart(true);
     const inv = allInversionistas.find(i => i.id === newPart.invId);
     const entry = {
@@ -3005,7 +3025,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     const fundingPct = target > 0 ? Math.min(100, Math.round((levantado / target) * 100)) : 0;
 
     const tabs = [
-      { id: 'general', label: 'Info General', icon: '📋', color: 'var(--gw-cyan)' },
+      { id: 'general', label: 'General Info', icon: '📋', color: 'var(--gw-cyan)' },
       ...PROJECT_SECTIONS.map(s => ({ id: s.id, label: s.label, icon: s.icon, color: s.color, section: s }))
     ];
 
@@ -3228,6 +3248,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                     {l:'ID LLC / EIN', v:form.IdLLC || '—'},
                     {l:'Etapa Actual', v:form.EtapaActual},
                     {l:'Monto Target', v:fmtMoney(form.MontoTarget)},
+                    {l:'Equity', v: activoData?.Equity ? fmtMoney(activoData.Equity) : '—'},
+                    {l:'Loan', v: activoData?.Loan ? fmtMoney(activoData.Loan) : '—'},
                     {l:'Monto Levantado', v:fmtMoney(levantado)},
                     {l:'Fecha Cierre Estimado', v:fmtDate(form.FechaCierreEstimado)},
                     {l:'Estado LLC', v:form.EstadoLLC},
@@ -3529,23 +3551,38 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                 })}
               </div>
 
-              {/* ── FONDEO SUB-TABS ── */}
-              {section.id === 'fondeo' && (
+              {/* ── INVESTORS SUB-TABS (E4) ── */}
+              {section.id === 'e4' && (
                 <div style={{display:'flex', gap:0, marginBottom:18, marginTop:12, borderBottom:'2px solid var(--gw-border)'}}>
-                  {[{id:'fondeo', label:'💰 Fondeo', icon:''}, {id:'closing', label:'📋 Closing', icon:''}].map(st => (
-                    <button key={st.id} onClick={() => setFondeoSubTab(st.id)}
+                  {[{id:'registration', label:'📋 Registration'}, {id:'documentation', label:'📄 Documentation'}].map(st => (
+                    <button key={st.id} onClick={() => setInvestorsSubTab(st.id)}
                       style={{
                         padding:'10px 22px', background:'none', border:'none',
-                        borderBottom: fondeoSubTab===st.id ? '2px solid var(--gw-cyan)' : '2px solid transparent',
-                        color: fondeoSubTab===st.id ? 'var(--gw-cyan)' : 'var(--gw-muted)',
+                        borderBottom: investorsSubTab===st.id ? '2px solid var(--gw-cyan)' : '2px solid transparent',
+                        color: investorsSubTab===st.id ? 'var(--gw-cyan)' : 'var(--gw-muted)',
                         fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:'-2px', transition:'all 0.2s'
                       }}>{st.label}</button>
                   ))}
                 </div>
               )}
 
-              {/* ── INVESTOR MODULE (E4, E5, Fondeo) ── */}
-              {(section.id === 'e4' || section.id === 'e5' || (section.id === 'fondeo' && fondeoSubTab === 'fondeo')) && (() => {
+              {/* ── PURCHASE SUB-TABS (E5) ── */}
+              {section.id === 'e5' && (
+                <div style={{display:'flex', gap:0, marginBottom:18, marginTop:12, borderBottom:'2px solid var(--gw-border)'}}>
+                  {[{id:'financing', label:'💰 Financing'}, {id:'due_diligence', label:'🔍 Due Diligence'}, {id:'legal_asset', label:'⚖️ Legal Asset'}].map(st => (
+                    <button key={st.id} onClick={() => setPurchaseSubTab(st.id)}
+                      style={{
+                        padding:'10px 22px', background:'none', border:'none',
+                        borderBottom: purchaseSubTab===st.id ? '2px solid var(--gw-cyan)' : '2px solid transparent',
+                        color: purchaseSubTab===st.id ? 'var(--gw-cyan)' : 'var(--gw-muted)',
+                        fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:'-2px', transition:'all 0.2s'
+                      }}>{st.label}</button>
+                  ))}
+                </div>
+              )}
+
+              {/* ── INVESTOR MODULE (E4-Registration, E4-Documentation, Fondeo) ── */}
+              {((section.id === 'e4' && investorsSubTab === 'registration') || (section.id === 'e4' && investorsSubTab === 'documentation') || section.id === 'fondeo') && (() => {
                 const statusStyles = {
                   pendiente: { bg:'rgba(232,160,48,0.12)', color:'var(--gw-warning)', border:'rgba(232,160,48,0.4)' },
                   enviado:   { bg:'rgba(26,143,168,0.12)', color:'var(--gw-cyan)',    border:'rgba(26,143,168,0.4)' },
@@ -3562,8 +3599,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                   );
                 }
 
-                const isE4 = section.id === 'e4';
-                const isE5 = section.id === 'e5';
+                const isE4 = section.id === 'e4' && investorsSubTab === 'registration';
+                const isE5 = section.id === 'e4' && investorsSubTab === 'documentation';
                 const isFondeo = section.id === 'fondeo';
 
                 // E4 columns: Inversionista, %, Monto, Estado, Notificar, Acciones
@@ -3575,7 +3612,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                     <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
                       <div>
                         <div style={{fontSize:16, fontWeight:700, color:'var(--gw-heading)'}}>
-                          {isE4 ? '👥 Inversionistas del Proyecto' : isE5 ? '🔍 Due Diligence por Inversionista' : '💰 Fondeo por Inversionista'}
+                          {isE4 ? '👥 Investors Registration' : isE5 ? '📄 Investor Documentation' : '💰 Funding per Investor'}
                         </div>
                         <div style={{fontSize:12, color:'var(--gw-muted)', marginTop:3}}>
                           {participaciones.length} inversionista{participaciones.length !== 1 ? 's' : ''} vinculado{participaciones.length !== 1 ? 's' : ''}
@@ -3636,17 +3673,27 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 </select>
                               </div>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación</div>
-                                <input type="number" min="0" max="100" step="0.1" value={newPart.porcentaje}
-                                  onChange={e => setNewPart(p=>({...p,porcentaje:e.target.value}))} placeholder="Ej: 25.5"
-                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
-                              </div>
-                              <div>
                                 <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Monto Inversión (USD)</div>
                                 <input type="number" min="0" step="1000" value={newPart.montoInversion||''}
-                                  onChange={e => { const m = e.target.value; const gp = newPart.gfdPct||30; const fp = newPart.finalDepositPct||70; setNewPart(p=>({...p, montoInversion:m, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''})); }}
+                                  onChange={e => {
+                                    const m = e.target.value;
+                                    const gp = newPart.gfdPct||30;
+                                    const fp = newPart.finalDepositPct||70;
+                                    const montoTarget = parseFloat(viewingProject?.fields?.MontoTarget) || 0;
+                                    const pct = (m && montoTarget > 0) ? ((parseFloat(m) / montoTarget) * 100).toFixed(2) : '';
+                                    setNewPart(p=>({...p, montoInversion:m, porcentaje: pct, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''}));
+                                  }}
                                   placeholder="Ej: 100000"
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                                {viewingProject?.fields?.MontoTarget && (
+                                  <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:3}}>Target: ${Number(viewingProject.fields.MontoTarget).toLocaleString()}</div>
+                                )}
+                              </div>
+                              <div>
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación (calculado)</div>
+                                <input type="number" min="0" max="100" step="0.01" value={newPart.porcentaje}
+                                  readOnly
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'rgba(26,143,168,0.06)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                               </div>
                               <div>
                                 <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Estado Aportes</div>
@@ -3699,8 +3746,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                             <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
                               <button onClick={() => { setShowAddInv(false); setNewPart({invId:'',nombre:'',tipo:'natural',porcentaje:'',aporteEstado:'pendiente'}); }}
                                 style={{padding:'8px 16px', background:'none', border:'1px solid var(--gw-border)', borderRadius:8, fontSize:13, cursor:'pointer', color:'var(--gw-body)'}}>Cancelar</button>
-                              <button onClick={addParticipacion} disabled={!newPart.invId || !newPart.porcentaje || savingPart}
-                                style={{padding:'8px 18px', background:'var(--gw-cyan)', color:'white', border:'none', borderRadius:8, fontSize:13, cursor:'pointer', fontWeight:600, opacity:(!newPart.invId||!newPart.porcentaje)?0.5:1}}>
+                              <button onClick={addParticipacion} disabled={!newPart.invId || !newPart.montoInversion || savingPart}
+                                style={{padding:'8px 18px', background:'var(--gw-cyan)', color:'white', border:'none', borderRadius:8, fontSize:13, cursor:'pointer', fontWeight:600, opacity:(!newPart.invId||!newPart.montoInversion)?0.5:1}}>
                                 {savingPart ? 'Guardando...' : '🔗 Vincular al proyecto'}</button>
                             </div>
                           </div>
@@ -3778,15 +3825,25 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                               <div>
                                 <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Monto Inversión (USD)</div>
                                 <input type="number" min="0" step="1000" value={newProspect.montoInversion}
-                                  onChange={e => { const m = e.target.value; const gp = newProspect.gfdPct||30; const fp = newProspect.finalDepositPct||70; setNewProspect(p=>({...p, montoInversion:m, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''})); }}
+                                  onChange={e => {
+                                    const m = e.target.value;
+                                    const gp = newProspect.gfdPct||30;
+                                    const fp = newProspect.finalDepositPct||70;
+                                    const montoTarget = parseFloat(viewingProject?.fields?.MontoTarget) || 0;
+                                    const pct = (m && montoTarget > 0) ? ((parseFloat(m) / montoTarget) * 100).toFixed(2) : '';
+                                    setNewProspect(p=>({...p, montoInversion:m, porcentaje: pct, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''}));
+                                  }}
                                   placeholder="100,000"
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                                {viewingProject?.fields?.MontoTarget && (
+                                  <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:3}}>Target del proyecto: ${Number(viewingProject.fields.MontoTarget).toLocaleString()}</div>
+                                )}
                               </div>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación</div>
-                                <input type="number" min="0" max="100" step="0.1" value={newProspect.porcentaje}
-                                  onChange={e => setNewProspect(p=>({...p, porcentaje:e.target.value}))} placeholder="25.5"
-                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación (calculado)</div>
+                                <input type="number" min="0" max="100" step="0.01" value={newProspect.porcentaje}
+                                  readOnly
+                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'rgba(26,143,168,0.06)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                               </div>
                             </div>
                             {newProspect.montoInversion && (
@@ -3849,7 +3906,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                         <div style={{fontSize:32, marginBottom:8}}>{isE4 ? '👥' : isE5 ? '🔍' : '💰'}</div>
                         <div style={{fontSize:14, fontWeight:600}}>Sin inversionistas vinculados</div>
                         <div style={{fontSize:12, marginTop:4}}>
-                          {isE4 ? 'Usa el botón "Agregar inversionista" para asociar participantes a este proyecto' : isE5 ? 'Agrega inversionistas en E4 para ver su avance de Due Diligence aquí' : 'Agrega inversionistas en E4 para ver el estado de fondeo aquí'}
+                          {isE4 ? 'Use "Add Investor" to associate participants to this project' : isE5 ? 'Add investors in E4 Registration to see their documentation progress here' : 'Add investors in E4 to see funding status here'}
                         </div>
                       </div>
                     ) : (
@@ -4437,8 +4494,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                 </>);
               })()}
 
-              {/* ── CLOSING SUB-TAB (Fondeo only) ── */}
-              {section.id === 'fondeo' && fondeoSubTab === 'closing' && (() => {
+              {/* ── PURCHASE SUB-SECTIONS (E5) ── */}
+              {section.id === 'e5' && (() => {
                 const thStyle = {padding:'10px 12px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'};
                 const tdStyle = {padding:'10px 12px', fontSize:13, color:'var(--gw-heading)'};
                 const checkStyle = (checked) => ({
@@ -4449,28 +4506,30 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                   fontSize:12, fontWeight:700, transition:'all 0.2s', flexShrink:0
                 });
 
-                const closingDocs = [
-                  { id:'cl_deeds', doc:'Deeds', coord:'LEG', name:'Fox' },
-                  { id:'cl_leases', doc:'Leases', coord:'LEG', name:'Fox' },
-                  { id:'cl_estoppel', doc:'Estoppel', coord:'LEG', name:'Fox' },
-                  { id:'cl_closing_stmt', doc:'Closing Statement', coord:'LEG', name:'Fox' },
-                  { id:'cl_firpta', doc:'FIRPTA', coord:'LEG', name:'Fox' },
+                const financingDocs = [
                   { id:'cl_appraisal', doc:'Appraisal', coord:'FIN', name:'Paula' },
-                  { id:'cl_financials', doc:'Financials', coord:'FIN', name:'Paula' },
-                  { id:'cl_funds_close', doc:'Funds to Close', coord:'FIN', name:'Paula' },
-                  { id:'cl_wire', doc:'Wire Instructions', coord:'FIN', name:'Paula' },
-                  { id:'cl_insurance', doc:'Insurance', coord:'PM', name:'Robin' },
-                  { id:'cl_environmental', doc:'Environmental', coord:'PM', name:'Robin' },
-                  { id:'cl_survey_title', doc:'Survey - Title', coord:'PM', name:'Robin' },
-                  { id:'cl_zoning', doc:'Zoning ADD', coord:'PM', name:'Robin' },
-                ];
-                const loanDocs = [
                   { id:'cl_escrow', doc:'Escrow Agreement', provider:'Bank' },
                   { id:'cl_snda', doc:'SNDA', provider:'Bank' },
                   { id:'cl_ctc', doc:'CTC', provider:'Bank' },
                   { id:'cl_legal_opinion', doc:'Legal Opinion', provider:'Lawyer' },
                   { id:'cl_term_sheet', doc:'Term Sheet / LA', provider:'Bank' },
                   { id:'cl_coi', doc:'COI Insurance', provider:'Ins Broker' },
+                ];
+                const ddDocs = [
+                  { id:'cl_financials', doc:'Financials', coord:'FIN', name:'Paula' },
+                  { id:'cl_insurance', doc:'Insurance', coord:'PM', name:'Robin' },
+                  { id:'cl_environmental', doc:'Environmental', coord:'PM', name:'Robin' },
+                  { id:'cl_survey_title', doc:'Survey - Title', coord:'PM', name:'Robin' },
+                  { id:'cl_zoning', doc:'Zoning ADD', coord:'PM', name:'Robin' },
+                ];
+                const legalAssetDocs = [
+                  { id:'cl_deeds', doc:'Deeds', coord:'LEG', name:'Fox' },
+                  { id:'cl_leases', doc:'Leases', coord:'LEG', name:'Fox' },
+                  { id:'cl_estoppel', doc:'Estoppel', coord:'LEG', name:'Fox' },
+                  { id:'cl_closing_stmt', doc:'Closing Statement', coord:'LEG', name:'Fox' },
+                  { id:'cl_firpta', doc:'FIRPTA', coord:'LEG', name:'Fox' },
+                  { id:'cl_funds_close', doc:'Funds to Close', coord:'FIN', name:'Paula' },
+                  { id:'cl_wire', doc:'Wire Instructions', coord:'FIN', name:'Paula' },
                 ];
 
                 const coordColors = {
@@ -4479,51 +4538,66 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                   PM:  { bg:'rgba(200,150,12,0.1)', color:'#C8960C', border:'rgba(200,150,12,0.3)' },
                 };
 
+                const activeDocs = purchaseSubTab === 'financing' ? financingDocs
+                  : purchaseSubTab === 'due_diligence' ? ddDocs
+                  : legalAssetDocs;
+
+                const sectionTitle = purchaseSubTab === 'financing' ? '💰 Financing Documents'
+                  : purchaseSubTab === 'due_diligence' ? '🔍 Due Diligence Documents'
+                  : '⚖️ Legal Asset Documents';
+
+                function renderDocRow(d) {
+                  const checked = !!milestones[d.id];
+                  const cc = d.coord ? (coordColors[d.coord] || coordColors.PM) : { bg:'rgba(26,143,168,0.1)', color:'var(--gw-cyan)', border:'rgba(26,143,168,0.3)' };
+                  const coordLabel = d.coord || '';
+                  const nameLabel = d.name || d.provider || '';
+                  return (
+                    <tr key={d.id} style={{borderBottom:'1px solid var(--gw-border)', opacity: checked ? 0.6 : 1, transition:'opacity 0.2s'}}>
+                      <td style={{padding:'10px 12px'}}>
+                        <div onClick={() => setMilestones(prev => ({...prev, [d.id]: !prev[d.id]}))}
+                          style={checkStyle(checked)}>
+                          {checked ? '✓' : ''}
+                        </div>
+                      </td>
+                      <td style={{...tdStyle, fontWeight:600, textDecoration: checked ? 'line-through' : 'none'}}>{d.doc}</td>
+                      <td style={tdStyle}>
+                        {coordLabel && <span style={{
+                          padding:'3px 10px', borderRadius:99, fontSize:11, fontWeight:700,
+                          background:cc.bg, color:cc.color, border:`1px solid ${cc.border}`
+                        }}>{coordLabel}</span>}
+                        {!coordLabel && d.provider && <span style={{
+                          padding:'3px 10px', borderRadius:99, fontSize:11, fontWeight:700,
+                          background:'rgba(26,143,168,0.1)', color:'var(--gw-cyan)', border:'1px solid rgba(26,143,168,0.3)'
+                        }}>{d.provider}</span>}
+                      </td>
+                      <td style={{...tdStyle, fontWeight:600}}>{nameLabel}</td>
+                    </tr>
+                  );
+                }
+
                 return (
                   <div style={{marginTop:12}}>
-                    {/* Section 1: Closing Documents */}
                     <div style={{marginBottom:24}}>
                       <div style={{fontSize:15, fontWeight:700, color:'var(--gw-heading)', marginBottom:12, display:'flex', alignItems:'center', gap:8}}>
-                        📋 Documentos de Cierre
+                        {sectionTitle}
                       </div>
                       <div style={{background:'var(--gw-card)', border:'1px solid var(--gw-border)', borderRadius:12, overflowX:'auto'}}>
                         <table style={{width:'100%', borderCollapse:'collapse', minWidth:650}}>
                           <thead>
                             <tr style={{background:'var(--gw-page-bg)', borderBottom:'2px solid var(--gw-border)'}}>
                               <th style={{...thStyle, width:36}}></th>
-                              <th style={thStyle}>Documento</th>
-                              <th style={thStyle}>Int. Coord</th>
-                              <th style={thStyle}>Responsable</th>
+                              <th style={thStyle}>Document</th>
+                              <th style={thStyle}>Coord / Provider</th>
+                              <th style={thStyle}>Responsible</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {closingDocs.map(d => {
-                              const checked = !!milestones[d.id];
-                              const cc = coordColors[d.coord] || coordColors.PM;
-                              return (
-                                <tr key={d.id} style={{borderBottom:'1px solid var(--gw-border)', opacity: checked ? 0.6 : 1, transition:'opacity 0.2s'}}>
-                                  <td style={{padding:'10px 12px'}}>
-                                    <div onClick={() => setMilestones(prev => ({...prev, [d.id]: !prev[d.id]}))}
-                                      style={checkStyle(checked)}>
-                                      {checked ? '✓' : ''}
-                                    </div>
-                                  </td>
-                                  <td style={{...tdStyle, fontWeight:600, textDecoration: checked ? 'line-through' : 'none'}}>{d.doc}</td>
-                                  <td style={tdStyle}>
-                                    <span style={{
-                                      padding:'3px 10px', borderRadius:99, fontSize:11, fontWeight:700,
-                                      background:cc.bg, color:cc.color, border:`1px solid ${cc.border}`
-                                    }}>{d.coord}</span>
-                                  </td>
-                                  <td style={{...tdStyle, fontWeight:600}}>{d.name}</td>
-                                </tr>
-                              );
-                            })}
+                            {activeDocs.map(d => renderDocRow(d))}
                           </tbody>
                           <tfoot>
                             <tr style={{background:'var(--gw-page-bg)', borderTop:'2px solid var(--gw-border)'}}>
                               <td colSpan={4} style={{padding:'10px 12px', fontSize:12, color:'var(--gw-muted)', fontWeight:600}}>
-                                {closingDocs.filter(d => milestones[d.id]).length} / {closingDocs.length} completados
+                                {activeDocs.filter(d => milestones[d.id]).length} / {activeDocs.length} completed
                               </td>
                             </tr>
                           </tfoot>
@@ -4531,60 +4605,6 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                       </div>
                     </div>
 
-                    {/* Section 2: If Loan */}
-                    <div style={{marginBottom:24}}>
-                      <div style={{fontSize:15, fontWeight:700, color:'var(--gw-heading)', marginBottom:12, display:'flex', alignItems:'center', gap:8}}>
-                        🏦 If Loan — Documentos Adicionales
-                        <label style={{display:'flex', alignItems:'center', gap:6, fontSize:12, fontWeight:500, color:'var(--gw-muted)', cursor:'pointer', marginLeft:16}}>
-                          <input type="checkbox" checked={!!milestones.loan_aplica} onChange={() => setMilestones(prev => ({...prev, loan_aplica: !prev.loan_aplica}))}
-                            style={{width:16, height:16, accentColor:'var(--gw-cyan)'}} />
-                          Aplica Loan
-                        </label>
-                        {!milestones.loan_aplica && <span style={{fontSize:11, color:'var(--gw-success)', fontWeight:600}}>✅ No aplica — sección completada</span>}
-                      </div>
-                      {milestones.loan_aplica && (
-                      <div style={{background:'var(--gw-card)', border:'1px solid var(--gw-border)', borderRadius:12, overflowX:'auto'}}>
-                        <table style={{width:'100%', borderCollapse:'collapse', minWidth:500}}>
-                          <thead>
-                            <tr style={{background:'var(--gw-page-bg)', borderBottom:'2px solid var(--gw-border)'}}>
-                              <th style={{...thStyle, width:36}}></th>
-                              <th style={thStyle}>Documento</th>
-                              <th style={thStyle}>Provider</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {loanDocs.map(d => {
-                              const checked = !!milestones[d.id];
-                              return (
-                                <tr key={d.id} style={{borderBottom:'1px solid var(--gw-border)', opacity: checked ? 0.6 : 1, transition:'opacity 0.2s'}}>
-                                  <td style={{padding:'10px 12px'}}>
-                                    <div onClick={() => setMilestones(prev => ({...prev, [d.id]: !prev[d.id]}))}
-                                      style={checkStyle(checked)}>
-                                      {checked ? '✓' : ''}
-                                    </div>
-                                  </td>
-                                  <td style={{...tdStyle, fontWeight:600, textDecoration: checked ? 'line-through' : 'none'}}>{d.doc}</td>
-                                  <td style={tdStyle}>
-                                    <span style={{
-                                      padding:'3px 10px', borderRadius:99, fontSize:11, fontWeight:700,
-                                      background:'rgba(26,143,168,0.1)', color:'var(--gw-cyan)', border:'1px solid rgba(26,143,168,0.3)'
-                                    }}>{d.provider}</span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot>
-                            <tr style={{background:'var(--gw-page-bg)', borderTop:'2px solid var(--gw-border)'}}>
-                              <td colSpan={3} style={{padding:'10px 12px', fontSize:12, color:'var(--gw-muted)', fontWeight:600}}>
-                                {loanDocs.filter(d => milestones[d.id]).length} / {loanDocs.length} completados
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                      )}
-                    </div>
                   </div>
                 );
               })()}
@@ -4762,6 +4782,8 @@ function ActivosPage({ siteId }) {
     Estado_x002f_Provincia:"Florida",
     PrecioOferta:"",
     CapRateDisplay:"",
+    Equity:"",
+    Loan:"",
     EvaluadorName:"",
     CriterioLocation:"Pendiente",
     CriterioTenant:"Pendiente",
@@ -4782,6 +4804,8 @@ function ActivosPage({ siteId }) {
       Estado_x002f_Provincia:"Florida",
       PrecioOferta:"",
       CapRateDisplay:"",
+      Equity:"",
+      Loan:"",
       EvaluadorName:"",
       CriterioLocation:"Pendiente",
       CriterioTenant:"Pendiente",
@@ -4905,6 +4929,8 @@ function ActivosPage({ siteId }) {
       Estado_x002f_Provincia: item.fields.Estado_x002f_Provincia || "Florida",
       PrecioOferta: item.fields.PrecioOferta ? String(item.fields.PrecioOferta) : "",
       CapRateDisplay: item.fields["CapRate_x0028__x0025__x0029_"] ? String(item.fields["CapRate_x0028__x0025__x0029_"] * 100) : "",
+      Equity: item.fields.Equity ? String(item.fields.Equity) : "",
+      Loan: item.fields.Loan ? String(item.fields.Loan) : "",
       EvaluadorName: item.fields.Evaluador || "",
       CriterioLocation: item.fields.CriterioLocation || "Pendiente",
       CriterioTenant: item.fields.CriterioTenant || "Pendiente",
@@ -4967,6 +4993,8 @@ function ActivosPage({ siteId }) {
         Estado_x002f_Provincia: form.Estado_x002f_Provincia,
         PrecioOferta: form.PrecioOferta ? parseFloat(form.PrecioOferta) : null,
         "CapRate_x0028__x0025__x0029_": form.CapRateDisplay ? parseFloat(form.CapRateDisplay) / 100 : null,
+        Equity: form.Equity ? parseFloat(form.Equity) : null,
+        Loan: form.Loan ? parseFloat(form.Loan) : null,
         CriterioLocation: form.CriterioLocation,
         CriterioTenant: form.CriterioTenant,
         CriterioTesisdeinversi_x00f3_n: form.CriterioTesisdeinversi_x00f3_n,
@@ -5115,6 +5143,14 @@ function ActivosPage({ siteId }) {
                 <div className="form-group">
                   <label className="form-label">Cap Rate (%)</label>
                   <input className="form-input" type="number" step="0.1" min="0" max="100" value={form.CapRateDisplay} onChange={e => setForm({...form, CapRateDisplay: e.target.value})} placeholder="Ej: 20 para 20%" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Equity (USD)</label>
+                  <input className="form-input" type="number" min="0" step="1000" value={form.Equity} onChange={e => setForm({...form, Equity: e.target.value})} placeholder="Ej: 500000" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Loan (USD)</label>
+                  <input className="form-input" type="number" min="0" step="1000" value={form.Loan} onChange={e => setForm({...form, Loan: e.target.value})} placeholder="Ej: 1500000" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Fecha de Identificación *</label>
