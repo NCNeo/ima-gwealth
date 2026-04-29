@@ -1412,8 +1412,21 @@ function getEtapaBadge(etapa) {
     "Rechazado": { cls: "badge-red", label: "Rechazado" },
     "Pendiente de Generación": { cls: "badge-orange", label: "Pendiente" },
     "Enviado a Aprobación": { cls: "badge-blue", label: "En Revisión" },
+    "Cancelado": { cls: "badge-red", label: "Cancelado" },
+    "Descartado": { cls: "badge-red", label: "Descartado" },
+    "Inactivo": { cls: "badge-red", label: "Inactivo" },
   };
-  const b = map[etapa] || { cls: "badge-gray", label: etapa || "—" };
+  // Fallback: try to match partial strings for etapas that don't exactly match
+  let b = map[etapa];
+  if (!b && etapa) {
+    const lower = etapa.toLowerCase();
+    if (lower.includes('post') || lower.includes('closing') || lower.includes('e7')) b = { cls: "badge-green", label: etapa };
+    else if (lower.includes('cancel') || lower.includes('descart') || lower.includes('inactiv')) b = { cls: "badge-red", label: etapa };
+    else if (lower.includes('fondeo') || lower.includes('funding') || lower.includes('e6')) b = { cls: "badge-gold", label: etapa };
+    else if (lower.includes('investor') || lower.includes('inversionista') || lower.includes('e4') || lower.includes('purchase') || lower.includes('e5') || lower.includes('diligence')) b = { cls: "badge-blue", label: etapa };
+    else if (lower.includes('onboarding') || lower.includes('e3') || lower.includes('loi') || lower.includes('e2') || lower.includes('evaluaci')) b = { cls: "badge-orange", label: etapa };
+  }
+  if (!b) b = { cls: "badge-gray", label: etapa || "—" };
   return <span className={`badge ${b.cls}`}><span className="badge-dot"></span>{b.label}</span>;
 }
 
@@ -1453,14 +1466,172 @@ function calculateMilestoneProgress(milestonesJson) {
   };
 }
 
-// Calcula Monto Levantado dinámico desde Participaciones JSON (GFD Recibido + FD Recibido)
-function calcLevantado(participacionesJson) {
+// ── Inversiones (Participaciones) SharePoint List helpers ─────────────────
+// Column mapping: Inversiones list internal names (field_X) → in-memory object
+// These internal names are based on the existing Inversiones list structure.
+// A dynamic column discovery runs on first load to auto-detect any mismatches.
+let _invColumnMap = null; // Cached column mapping { displayName → internalName }
+
+async function discoverInversionesColumns(siteInvId) {
+  if (_invColumnMap) return _invColumnMap;
   try {
-    const parts = typeof participacionesJson === 'string' ? JSON.parse(participacionesJson) : participacionesJson;
-    if (!Array.isArray(parts)) return 0;
-    return parts.reduce((s, p) => s + (Number(p.gfdRecibido) || 0) + (Number(p.fdRecibido) || 0), 0);
-  } catch(e) { return 0; }
+    const res = await callGraph(`/sites/${siteInvId}/lists/${LISTS.inversiones}/columns`);
+    const map = {};
+    (res.value || []).forEach(c => {
+      map[c.displayName] = c.name;
+      map[c.name] = c.name; // Also map internal→internal for convenience
+    });
+    _invColumnMap = map;
+    console.log('[GWealth] Inversiones column map:', JSON.stringify(map, null, 2));
+    return map;
+  } catch(e) {
+    console.warn('[GWealth] Could not discover Inversiones columns:', e.message);
+    return {};
+  }
 }
+
+// Helper: get internal field name from display name, with fallback
+function invCol(displayName, fallback) {
+  if (_invColumnMap && _invColumnMap[displayName]) return _invColumnMap[displayName];
+  return fallback || displayName;
+}
+
+// Maps a SharePoint Inversiones list item to the in-memory participacion object
+function spItemToParticipacion(item) {
+  const f = item.fields || {};
+  // Debug: log first item's field keys (uncomment to diagnose field name issues)
+  // if (!spItemToParticipacion._logged) { console.log('[GWealth] Sample item fields:', Object.keys(f)); spItemToParticipacion._logged = true; }
+  let abonos = [];
+  try {
+    const rawAbonos = f[invCol('Abonos','Abonos')] || f.Abonos;
+    abonos = rawAbonos ? JSON.parse(rawAbonos) : [];
+  } catch(e) { abonos = []; }
+
+  // Get inversionista ID from lookup or text field
+  const invLookupId = f.InversionistaLookupId || f[invCol('Inversionista','Inversionista')] || '';
+  // Get investor name: prefer lookup title, or extract from Title ("Name — Project")
+  let invNombre = f[invCol('Inversionista: Title','')] || '';
+  if (!invNombre && f.Title) {
+    // Title format is "InvestorName — ProjectName", extract just the name
+    invNombre = f.Title.includes(' — ') ? f.Title.split(' — ')[0].trim() : f.Title;
+  }
+
+  return {
+    _spId: item.id,  // SharePoint item ID for CRUD operations
+    _spProyectoId: f.Proyecto || f[invCol('Proyecto','Proyecto')] || '',
+    invId: String(invLookupId),
+    nombre: invNombre,
+    email: '',  // Email lives in Inversionistas list, refreshed on load
+    tipo: 'natural',  // Tipo lives in Inversionistas list, refreshed on load
+    // Confirmed internal names from Graph API discovery
+    porcentaje: Number(f.field_4) || 0,
+    montoInversion: Number(f.field_5) || 0,
+    gfd: Number(f[invCol('Good Faith Deposit','GoodFaithDeposit')] || 0),
+    finalDeposit: Number(f[invCol('Final Deposit','FinalDeposit')] || 0),
+    gfdRecibido: Number(f[invCol('Monto GFD Recibido','Monto_x0020_GFD_x0020_Recibido')] || f.Monto_x0020_GFD_x0020_Recibido || 0),
+    fdRecibido: Number(f[invCol('Monto Final Deposit Recibido','Monto_x0020_Final_x0020_Deposit_x0020_Recibido')] || f.Monto_x0020_Final_x0020_Deposit_x0020_Recibido || 0),
+    aporteEstado: f.field_16 || 'Pendiente',
+    estadoAcuerdo: f.field_15 || 'Pendiente',
+    esProspecto: f.Esprospecto || false,
+    ddEstado: f.DDestado || '',
+    tsEstado: f.TSEstado || '',
+    saEstado: f.SAestado || '',
+    fechaGFD: f[invCol('Fecha GFD Recibido','Fecha_x0020_GFD_x0020_Recibido')] || f.Fecha_x0020_GFD_x0020_Recibido || '',
+    fechaFD: f[invCol('Fecha Final Deposit Recibido','Fecha_x0020_Final_x0020_Deposit_x0020_Recibido')] || f.Fecha_x0020_Final_x0020_Deposit_x0020_Recibido || '',
+    fechaCierreNeg: f[invCol('Fecha Límite Final Deposit','Fecha_x0020_L_x00ed_mite_x0020_Final_x0020_Deposit')] || '',
+    observaciones: f.Observaciones || '',
+    abonos: abonos,
+    // Keep reference to nombre proyecto for display
+    _nombreProyecto: f.NombreProyecto || f[invCol('Nombre Proyecto','NombreProyecto')] || '',
+  };
+}
+
+// Maps an in-memory participacion object to SharePoint Inversiones fields for PATCH
+function participacionToSpFields(p, proyectoId, proyectoTitle) {
+  const fields = {};
+  // Confirmed internal names from Graph API discovery
+  fields.field_4 = Number(p.porcentaje) || 0;
+  fields.field_5 = Number(p.montoInversion) || 0;
+  fields.field_15 = p.estadoAcuerdo || p.aporteEstado || 'Pendiente';
+  fields.field_16 = p.aporteEstado || 'Pendiente';
+  // GFD and FD received amounts (use discovered names with fallback)
+  fields[invCol('Monto GFD Recibido','Monto_x0020_GFD_x0020_Recibido')] = Number(p.gfdRecibido) || 0;
+  fields[invCol('Monto Final Deposit Recibido','Monto_x0020_Final_x0020_Deposit_x0020_Recibido')] = Number(p.fdRecibido) || 0;
+  // Document status columns
+  fields.DDestado = p.ddEstado || '';
+  fields.TSEstado = p.tsEstado || '';
+  fields.SAestado = p.saEstado || '';
+  fields.Esprospecto = p.esProspecto || false;
+  fields.Observaciones = p.observaciones || '';
+  fields.Abonos = (p.abonos && p.abonos.length > 0) ? JSON.stringify(p.abonos) : '';
+  // Fecha fields (use discovered names with fallback)
+  const fechaGFDCol = invCol('Fecha GFD Recibido','Fecha_x0020_GFD_x0020_Recibido');
+  if (fechaGFDCol && p.fechaGFD) fields[fechaGFDCol] = p.fechaGFD;
+  const fechaFDCol = invCol('Fecha Final Deposit Recibido','Fecha_x0020_Final_x0020_Deposit_x0020_Recibido');
+  if (fechaFDCol && p.fechaFD) fields[fechaFDCol] = p.fechaFD;
+  const fechaCierreCol = invCol('Fecha Límite Final Deposit','Fecha_x0020_L_x00ed_mite_x0020_Final_x0020_Deposit');
+  if (fechaCierreCol && p.fechaCierreNeg) fields[fechaCierreCol] = p.fechaCierreNeg;
+  // Don't update: Proyecto, NombreProyecto, Title, InversionistaLookupId (set at creation only)
+  return fields;
+}
+
+// Cache for all inversiones items (avoids multiple loads)
+let _allInversionesCache = null;
+let _allInversionesCacheTime = 0;
+
+// Load ALL inversiones from SP list (with column discovery and caching)
+async function loadAllParticipacionesSP(siteInvId) {
+  try {
+    await discoverInversionesColumns(siteInvId);
+    // Load all items without $filter (SP Graph API has filter limitations on custom fields)
+    let allItems = [];
+    let url = `/sites/${siteInvId}/lists/${LISTS.inversiones}/items?$expand=fields&$top=500`;
+    while (url) {
+      const res = await callGraph(url);
+      allItems = allItems.concat(res.value || []);
+      // Handle pagination via @odata.nextLink
+      if (res['@odata.nextLink']) {
+        url = res['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0', '');
+      } else {
+        url = null;
+      }
+    }
+    const mapped = allItems.map(spItemToParticipacion);
+    _allInversionesCache = mapped;
+    _allInversionesCacheTime = Date.now();
+    console.log(`[GWealth] Loaded ${mapped.length} participaciones from Inversiones list`);
+    return mapped;
+  } catch(e) {
+    console.error('[GWealth] Error loading all participaciones:', e);
+    return [];
+  }
+}
+
+// Load participaciones for a specific project (from cache or fresh load)
+async function loadParticipacionesFromSP(siteInvId, proyectoId) {
+  try {
+    // Use cache if fresh (< 30 seconds) otherwise reload
+    let all = _allInversionesCache;
+    if (!all || (Date.now() - _allInversionesCacheTime > 30000)) {
+      all = await loadAllParticipacionesSP(siteInvId);
+    }
+    // Filter client-side by proyecto ID
+    const filtered = all.filter(p => String(p._spProyectoId) === String(proyectoId));
+    console.log(`[GWealth] Participaciones for project ${proyectoId}: ${filtered.length} found`);
+    return filtered;
+  } catch(e) {
+    console.error('[GWealth] Error loading participaciones for project:', e);
+    return [];
+  }
+}
+
+// Calcula Monto Levantado dinámico desde array de participaciones
+function calcLevantadoFromArray(parts) {
+  if (!Array.isArray(parts)) return 0;
+  return parts.reduce((s, p) => s + (Number(p.gfdRecibido) || 0) + (Number(p.fdRecibido) || 0), 0);
+}
+
+// Note: calcLevantado (JSON-based) removed. Use calcLevantadoFromArray() or getProjectLevantado() instead.
 
 function calculateStageProgress(stageName, projectMilestones) {
   const milestones = PROJECT_MILESTONES[stageName] || [];
@@ -1553,7 +1724,7 @@ function LoginScreen({ onLogin, loading }) {
 
 // ==================== DASHBOARD ====================
 function Dashboard({ siteInv, siteProy }) {
-  const [data, setData] = useState({ proyectos: [], activos: [], inversionistas: [], hitos: [] });
+  const [data, setData] = useState({ proyectos: [], activos: [], inversionistas: [], hitos: [], allParticipaciones: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -1564,21 +1735,23 @@ function Dashboard({ siteInv, siteProy }) {
   useEffect(() => {
     async function load() {
       try {
-        const [proyRes, actRes, hitoRes, invRes] = await Promise.all([
+        const [proyRes, actRes, hitoRes, invRes, allParts] = await Promise.all([
           callGraph(`/sites/${siteProy}/lists/${LISTS.proyectos}/items?$expand=fields&$top=500`),
           callGraph(`/sites/${siteProy}/lists/${LISTS.activos}/items?$expand=fields&$top=500`),
           callGraph(`/sites/${siteProy}/lists/${LISTS.hitos}/items?$expand=fields&$top=500`),
           callGraph(`/sites/${siteInv}/lists/${LISTS.inversionistas}/items?$expand=fields&$top=500`),
+          loadAllParticipacionesSP(siteInv),
         ]);
         setData({
           proyectos: proyRes.value || [],
           activos: actRes.value || [],
           inversionistas: invRes.value || [],
           hitos: hitoRes.value || [],
+          allParticipaciones: allParts || [],
         });
       } catch(e) {
         setError(e.message);
-        setData({ proyectos: [], activos: [], inversionistas: [], hitos: [] });
+        setData({ proyectos: [], activos: [], inversionistas: [], hitos: [], allParticipaciones: [] });
       }
       finally { setLoading(false); }
     }
@@ -1595,68 +1768,138 @@ function Dashboard({ siteInv, siteProy }) {
       ? data.proyectos.filter(p => String(p.id) === String(filterProyecto))
       : data.proyectos;
 
+  // ─── GLOBAL LOOKUPS ──────────────────────────────────────────────────────
+  // Group participaciones by project ID for efficient lookup
+  const partsByProject = {};
+  (data.allParticipaciones || []).forEach(p => {
+    const pid = String(p._spProyectoId || '');
+    if (!partsByProject[pid]) partsByProject[pid] = [];
+    partsByProject[pid].push(p);
+  });
+  // Map activos by ID for Loan lookup
+  const activosById = {};
+  (data.activos || []).forEach(a => { activosById[String(a.id)] = a; });
+  // Helper to get Loan amount for a project from its linked activo
+  function getProjectLoan(proy) {
+    const f = proy.fields || {};
+    const activoId = String(f.ActivoRelacionadoLookupId || f.ActivoRelacionadoId || f['ActivoRelacionado'] || '');
+    if (activoId && activosById[activoId]) {
+      return parseFloat(activosById[activoId].fields?.Loan || 0);
+    }
+    return 0;
+  }
+  // Helper to get levantado for a project = investor contributions + Loan
+  function getProjectLevantado(proyId, proy) {
+    const parts = partsByProject[String(proyId)] || [];
+    const investorCapital = calcLevantadoFromArray(parts);
+    const loan = proy ? getProjectLoan(proy) : 0;
+    return investorCapital + loan;
+  }
+
+  // ─── FILTERED DATA (all metrics respond to project filter) ──────────────
+  const activeProyIds = new Set(activeProy.map(p => String(p.id)));
+
+  // Activos filtered: only those linked to active (filtered) projects
+  const filteredActivoIds = new Set(activeProy.map(p =>
+    String(p.fields?.ActivoRelacionadoLookupId || p.fields?.ActivoRelacionadoId || '')
+  ).filter(v => v && v !== 'undefined'));
+  const filteredActivos = data.activos.filter(a => filteredActivoIds.has(String(a.id)));
+
+  // Hitos filtered by active projects
+  const filteredHitos = data.hitos.filter(h => {
+    const pid = String(h.fields?.ProyectoLookupId || h.fields?.ProyectoId || '');
+    return activeProyIds.has(pid);
+  });
+
+  // Participaciones filtered by active projects
+  const filteredParts = (data.allParticipaciones || []).filter(pt => activeProyIds.has(String(pt._spProyectoId)));
+
+  // Unique inversionistas from filtered participaciones
+  const filteredInvIds = new Set(filteredParts.map(pt => String(pt.invId || '')).filter(v => v && v !== '0'));
+  const numInv = filteredInvIds.size;
+
   // ─── STRATEGIC metrics ───────────────────────────────────────────────────
-  const totalTarget    = activeProy.reduce((s,p) => s + parseFloat(p.fields.MontoTarget   || 0), 0);
-  const totalLevantado = activeProy.reduce((s,p) => s + calcLevantado(p.fields?.Participaciones), 0);
+  // Approved projects = exclude Cancelado / Descartado
+  const approvedProy = activeProy.filter(p => {
+    const etapa = (p.fields?.EtapaActual || '').toLowerCase();
+    return !etapa.includes('cancelado') && !etapa.includes('descartado');
+  });
+  const cancelledProy = activeProy.filter(p => {
+    const etapa = (p.fields?.EtapaActual || '').toLowerCase();
+    return etapa.includes('cancelado') || etapa.includes('descartado');
+  });
+  // Set of activo IDs linked to cancelled/discarded projects
+  const cancelledActivoIds = new Set(cancelledProy.map(p =>
+    String(p.fields?.ActivoRelacionadoLookupId || p.fields?.ActivoRelacionadoId || '')
+  ).filter(v => v && v !== 'undefined'));
+
+  const totalTarget    = approvedProy.reduce((s,p) => s + parseFloat(p.fields.MontoTarget   || 0), 0);
+  const totalLevantado = approvedProy.reduce((s,p) => s + getProjectLevantado(p.id, p), 0);
   const pctFunded      = totalTarget > 0 ? Math.round((totalLevantado / totalTarget) * 100) : 0;
   const numProyectos   = activeProy.length;
-  const numActivos     = data.activos.length;
-  const numInv         = data.inversionistas.length;
-  // Pipeline: activos en E2+ / total activos
-  const activosConProy    = new Set(activeProy.map(p => p.fields?.ActivoRelacionadoLookupId || p.fields?.ActivoRelacionadoId).filter(Boolean));
-  const activosEnPipeline = data.activos.filter(a => {
+  const numActivos     = filteredActivos.length;
+  // Pipeline: activos en E2+ (from filtered activos, exclude cancelled)
+  const activosEnPipeline = filteredActivos.filter(a => {
     const est = a.fields?.Estado || '';
-    return est && est !== 'Etapa 1: Evaluación' && est !== 'En evaluación' && est !== 'Descartado';
+    const aId = String(a.id);
+    if (!est || est === 'Etapa 1: Evaluación' || est === 'En evaluación' || est === 'Descartado') return false;
+    if (cancelledActivoIds.has(aId)) return false;
+    return true;
   });
-  const activosRechazados = data.activos.filter(a => (a.fields?.Estado || '') === 'Descartado').length;
+  // Rechazados: activos with Estado=Descartado OR linked to cancelled projects
+  const activosRechazadosList = filteredActivos.filter(a => {
+    const est = (a.fields?.Estado || '');
+    return est === 'Descartado' || cancelledActivoIds.has(String(a.id));
+  });
+  const activosRechazados = activosRechazadosList.length;
+  const montoRechazados = cancelledProy.reduce((s,p) => s + parseFloat(p.fields?.MontoTarget || 0), 0);
   const convRate = numActivos > 0
     ? Math.min(100, Math.round((activosEnPipeline.length / numActivos) * 100))
     : 0;
-  const avgPerProy     = numProyectos > 0 ? totalTarget / numProyectos : 0;
-  const avgPerInv      = numInv > 0 ? totalLevantado / numInv : 0;
+  const avgPerProy     = approvedProy.length > 0 ? totalTarget / approvedProy.length : 0;
+  const avgPerInv      = numInv > 0 ? totalTarget / numInv : 0;
 
   // ─── INVESTOR PROCESS KPIs ─────────────────────────────────────────────
-  // Calculate from participaciones across all projects
+  // Calculate from filtered participaciones (exclude Cancelado projects)
+  const nonCancelledProyIds = new Set(approvedProy.map(p => String(p.id)));
+  const activeParts = filteredParts.filter(pt => nonCancelledProyIds.has(String(pt._spProyectoId)));
   let totalParts = 0, tsFirmados = 0, saFirmados = 0, ddFirmados = 0;
-  let tsEnviados = 0, tsTiempos = [];
-  activeProy.forEach(p => {
-    try {
-      const parts = JSON.parse(p.fields?.Participaciones || '[]');
-      parts.forEach(pt => {
-        totalParts++;
-        if (pt.tsEstado === 'firmado') tsFirmados++;
-        if (pt.tsEstado === 'enviado' || pt.tsEstado === 'firmado') tsEnviados++;
-        if ((pt.saEstado || pt.ppmEstado) === 'firmado') saFirmados++;
-        if (pt.ddEstado === 'firmado') ddFirmados++;
-      });
-    } catch {}
+  let tsEnviados = 0;
+  activeParts.forEach(pt => {
+    totalParts++;
+    const dd = (pt.ddEstado || '').toLowerCase();
+    const ts = (pt.tsEstado || '').toLowerCase();
+    const sa = ((pt.saEstado || pt.ppmEstado) || '').toLowerCase();
+    if (ts === 'firmado') tsFirmados++;
+    if (ts === 'enviado' || ts === 'firmado') tsEnviados++;
+    if (sa === 'firmado') saFirmados++;
+    if (dd === 'firmado') ddFirmados++;
   });
-  const pctTsFirmados = tsEnviados > 0 ? Math.round(tsFirmados / tsEnviados * 100) : 0;
+  const pctTsFirmados = totalParts > 0 ? Math.round(tsFirmados / totalParts * 100) : 0;
   const pctFirmasCompletas = totalParts > 0 ? Math.round(((tsFirmados + saFirmados + ddFirmados) / (totalParts * 3)) * 100) : 0;
   // Avg investor progress (DD + TS + SA = 3 steps, each firmado = 33%)
-  const avgInvProgress = totalParts > 0 ? Math.round(activeProy.reduce((s, p) => {
-    try {
-      const parts = JSON.parse(p.fields?.Participaciones || '[]');
-      return s + parts.reduce((ps, pt) => {
-        let score = 0;
-        if (pt.ddEstado === 'firmado') score += 33; else if (pt.ddEstado === 'enviado') score += 15;
-        if (pt.tsEstado === 'firmado') score += 33; else if (pt.tsEstado === 'enviado') score += 15;
-        if ((pt.saEstado||pt.ppmEstado) === 'firmado') score += 34; else if ((pt.saEstado||pt.ppmEstado) === 'enviado') score += 15;
-        return ps + score;
-      }, 0);
-    } catch { return s; }
+  const avgInvProgress = totalParts > 0 ? Math.round(activeParts.reduce((s, pt) => {
+    let score = 0;
+    const dd = (pt.ddEstado || '').toLowerCase();
+    const ts = (pt.tsEstado || '').toLowerCase();
+    const sa = ((pt.saEstado || pt.ppmEstado) || '').toLowerCase();
+    if (dd === 'firmado') score += 33; else if (dd === 'enviado') score += 15;
+    if (ts === 'firmado') score += 33; else if (ts === 'enviado') score += 15;
+    if (sa === 'firmado') score += 34; else if (sa === 'enviado') score += 15;
+    return s + score;
   }, 0) / totalParts) : 0;
 
   // ─── OPERATIONAL metrics ─────────────────────────────────────────────────
-  // Avg milestone progress across all projects
-  const progresses = activeProy.map(p => calculateMilestoneProgress(p.fields?.Milestones).percentage);
+  // Avg milestone progress across filtered projects (exclude Cancelado/Descartado)
+  const nonCancelledProy = approvedProy;
+  const progresses = nonCancelledProy.map(p => calculateMilestoneProgress(p.fields?.Milestones).percentage);
   const avgProgress = progresses.length > 0 ? Math.round(progresses.reduce((s,v)=>s+v,0) / progresses.length) : 0;
   const proyConAvance   = progresses.filter(v => v > 0).length;
   const proyCompletos   = progresses.filter(v => v === 100).length;
 
-  // Hitos metrics
+  // Hitos metrics (filtered by active projects)
   const approvalTypes = ['BP1','BP2','Brochure One Pager','Brochure Full Version','TS - OA'];
-  const hitosPendientes = data.hitos.filter(h => {
+  const hitosPendientes = filteredHitos.filter(h => {
     const estado = h.fields.EstadoAprobaci_x00f3_n || h.fields.EstadoAprobacion;
     const tipo = h.fields.TipoHito || '';
     return (estado === 'Pendiente' || estado === 'En proceso') && approvalTypes.includes(tipo);
@@ -1668,8 +1911,7 @@ function Dashboard({ siteInv, siteProy }) {
     const pct = calculateMilestoneProgress(p.fields?.Milestones).percentage;
     if (pct === 100) {
       const created = p.createdDateTime ? new Date(p.createdDateTime) : null;
-      // Find the most recent hito resolution date for this project
-      const proyHitos = data.hitos.filter(h => String(h.fields?.ProyectoLookupId || h.fields?.ProyectoId) === String(p.id));
+      const proyHitos = filteredHitos.filter(h => String(h.fields?.ProyectoLookupId || h.fields?.ProyectoId) === String(p.id));
       let lastResolved = null;
       proyHitos.forEach(h => {
         const res = h.fields?.['FechadeResoluci_x00f3_n'] || h.fields?.FechaDeResolucion;
@@ -1687,9 +1929,9 @@ function Dashboard({ siteInv, siteProy }) {
     ? (proyDias.reduce((s,v)=>s+v,0) / proyDias.length).toFixed(2)
     : null;
 
-  // Time per phase chart data (still useful)
+  // Time per phase chart data (filtered by active projects)
   const tiemposPorTipo = {};
-  data.hitos.forEach(h => {
+  filteredHitos.forEach(h => {
     const f = h.fields;
     const tipo  = f.TipoHito || f['TipoHito/Value'] || 'Otro';
     const sol   = f.FechadeSolicitud ? new Date(f.FechadeSolicitud) : null;
@@ -1712,8 +1954,8 @@ function Dashboard({ siteInv, siteProy }) {
     if (sortField === 'EtapaActual') { av = a.fields.EtapaActual||''; bv = b.fields.EtapaActual||''; return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av); }
     if (sortField === 'progreso') { av = calculateMilestoneProgress(a.fields?.Milestones).percentage; bv = calculateMilestoneProgress(b.fields?.Milestones).percentage; }
     else if (sortField === 'target') { av = parseFloat(a.fields.MontoTarget||0); bv = parseFloat(b.fields.MontoTarget||0); }
-    else if (sortField === 'levantado') { av = calcLevantado(a.fields?.Participaciones); bv = calcLevantado(b.fields?.Participaciones); }
-    else if (sortField === 'fondeo') { av = parseFloat(a.fields.MontoTarget||0)>0?calcLevantado(a.fields?.Participaciones)/parseFloat(a.fields.MontoTarget||0):0; bv = parseFloat(b.fields.MontoTarget||0)>0?calcLevantado(b.fields?.Participaciones)/parseFloat(b.fields.MontoTarget||0):0; }
+    else if (sortField === 'levantado') { av = getProjectLevantado(a.id, a); bv = getProjectLevantado(b.id, b); }
+    else if (sortField === 'fondeo') { av = parseFloat(a.fields.MontoTarget||0)>0?getProjectLevantado(a.id, a)/parseFloat(a.fields.MontoTarget||0):0; bv = parseFloat(b.fields.MontoTarget||0)>0?getProjectLevantado(b.id, b)/parseFloat(b.fields.MontoTarget||0):0; }
     else return 0;
     return sortDir==='asc' ? av-bv : bv-av;
   });
@@ -1834,7 +2076,7 @@ function Dashboard({ siteInv, siteProy }) {
           accent="var(--gw-cyan)"
           label="Avance promedio"
           value={`${avgProgress}%`}
-          sub={`${proyConAvance} de ${numProyectos} proyectos con avance`}
+          sub={`${proyConAvance} de ${nonCancelledProy.length} proyectos con avance`}
           subColor={avgProgress >= 75 ? 'var(--gw-success)' : avgProgress >= 40 ? 'var(--gw-cyan)' : 'var(--gw-warning)'}
           footer={<MiniBar pct={avgProgress} color={avgProgress>=75?'var(--gw-success)':avgProgress>=40?'var(--gw-cyan)':'var(--gw-warning)'} />}
         />
@@ -1872,9 +2114,9 @@ function Dashboard({ siteInv, siteProy }) {
           icon="🚧"
           accent="#E74C3C"
           label="Proyectos sin avance"
-          value={numProyectos - proyConAvance}
-          sub={(numProyectos - proyConAvance) === 0 ? 'Todo el portafolio activo' : 'Requieren revisión'}
-          subColor={(numProyectos - proyConAvance) > 0 ? '#E74C3C' : 'var(--gw-success)'}
+          value={nonCancelledProy.length - proyConAvance}
+          sub={(nonCancelledProy.length - proyConAvance) === 0 ? 'Todo el portafolio activo' : 'Requieren revisión'}
+          subColor={(nonCancelledProy.length - proyConAvance) > 0 ? '#E74C3C' : 'var(--gw-success)'}
         />
       </div>
 
@@ -1931,7 +2173,7 @@ function Dashboard({ siteInv, siteProy }) {
           accent="#7B61FF"
           label="% TS firmados"
           value={`${pctTsFirmados}%`}
-          sub={`${tsFirmados} de ${tsEnviados} TS enviados fueron firmados`}
+          sub={`${tsFirmados} de ${totalParts} inversionistas con TS firmado`}
           subColor={pctTsFirmados >= 70 ? 'var(--gw-success)' : pctTsFirmados >= 40 ? 'var(--gw-cyan)' : 'var(--gw-warning)'}
           footer={<MiniBar pct={pctTsFirmados} color={pctTsFirmados>=70?'var(--gw-success)':pctTsFirmados>=40?'var(--gw-cyan)':'var(--gw-warning)'} />}
         />
@@ -1995,7 +2237,9 @@ function Dashboard({ siteInv, siteProy }) {
           accent="#E74C3C"
           label="Activos rechazados"
           value={activosRechazados}
-          sub={numActivos > 0 ? `${Math.round(activosRechazados/numActivos*100)}% del total` : 'Sin activos'}
+          sub={activosRechazados > 0
+            ? `Target: ${montoRechazados >= 1e6 ? '$'+(montoRechazados/1e6).toFixed(1)+'M' : montoRechazados > 0 ? '$'+(montoRechazados/1e3).toFixed(0)+'K' : '$0'} en inversiones no avanzadas`
+            : 'Sin activos rechazados'}
           subColor={activosRechazados > 0 ? '#E74C3C' : 'var(--gw-success)'}
         />
         <KpiCard
@@ -2003,7 +2247,7 @@ function Dashboard({ siteInv, siteProy }) {
           accent="var(--gw-warning)"
           label="Inversión total esperada"
           value={totalTarget >= 1e6 ? `$${(totalTarget/1e6).toFixed(1)}M` : totalTarget > 0 ? `$${(totalTarget/1e3).toFixed(0)}K` : '—'}
-          sub={`${numProyectos} proyecto${numProyectos!==1?'s':''} en portafolio`}
+          sub={`${approvedProy.length} proyecto${approvedProy.length!==1?'s':''} aprobado${approvedProy.length!==1?'s':''}`}
         />
         <KpiCard
           icon="👥"
@@ -2021,7 +2265,7 @@ function Dashboard({ siteInv, siteProy }) {
           accent="#8B5CF6"
           label="Ticket promedio por proyecto"
           value={avgPerProy >= 1e6 ? `$${(avgPerProy/1e6).toFixed(1)}M` : avgPerProy > 0 ? `$${(avgPerProy/1e3).toFixed(0)}K` : '—'}
-          sub="Inversión objetivo promedio"
+          sub={`Objetivo promedio · ${approvedProy.length} proyectos aprobados`}
         />
         <KpiCard
           icon="🤝"
@@ -2048,7 +2292,7 @@ function Dashboard({ siteInv, siteProy }) {
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16}}>
           <div>
             <div style={{fontSize:14, fontWeight:700, color:'var(--gw-heading)'}}>💹 Capital levantado vs. inversión esperada</div>
-            <div style={{fontSize:12, color:'var(--gw-muted)', marginTop:2}}>Consolidado de todos los proyectos en portafolio</div>
+            <div style={{fontSize:12, color:'var(--gw-muted)', marginTop:2}}>Consolidado de {approvedProy.length} proyectos aprobados</div>
           </div>
           <div style={{textAlign:'right'}}>
             <div style={{fontSize:22, fontWeight:800, color: pctFunded>=80?'var(--gw-success)':pctFunded>=50?'var(--gw-cyan)':'var(--gw-warning)'}}>
@@ -2101,7 +2345,7 @@ function Dashboard({ siteInv, siteProy }) {
                 {sortedProyectos.map(p => {
                   const prog = calculateMilestoneProgress(p.fields?.Milestones);
                   const tgt  = parseFloat(p.fields.MontoTarget || 0);
-                  const lev  = calcLevantado(p.fields?.Participaciones);
+                  const lev  = getProjectLevantado(p.id, p);
                   const fpct = tgt > 0 ? Math.round((lev/tgt)*100) : 0;
                   return (
                     <tr key={p.id}
@@ -2285,6 +2529,32 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           });
         }
       });
+
+      // After hitos loaded, recalculate etapa and update if different
+      setTimeout(() => {
+        setMilestones(currentMils => {
+          const newEtapa = detectCurrentEtapa(currentMils);
+          const currentEtapa = viewingProject?.fields?.EtapaActual;
+          if (newEtapa && newEtapa !== currentEtapa && viewingProject) {
+            console.log(`[GWealth] Auto-updating etapa: ${currentEtapa} → ${newEtapa}`);
+            setForm(f => ({ ...f, EtapaActual: newEtapa }));
+            setViewingProject(p => ({ ...p, fields: { ...p.fields, EtapaActual: newEtapa } }));
+            // Persist to SharePoint
+            patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${viewingProject.id}`, {
+              fields: { EtapaActual: newEtapa }
+            }).then(async () => {
+              const activoId = await findActivoIdForProject(viewingProject);
+              if (activoId) {
+                patchGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}`, {
+                  fields: { Estado: newEtapa }
+                }).catch(e => console.warn('Could not update activo:', e.message));
+              }
+            }).catch(e => console.warn('Could not persist etapa:', e.message));
+          }
+          return currentMils;
+        });
+      }, 500); // Small delay to ensure milestone state is settled
+
     } catch(e) {
       console.warn('Could not load hitos:', e.message);
       setProjectHitos([]);
@@ -2345,16 +2615,35 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     }
   }
 
+  // Activos map for Loan lookup in project list
+  const [activosMap, setActivosMap] = useState({});
+
   useEffect(() => {
     async function load() {
       try {
-        const res = await callGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items?$expand=fields&$top=100`);
-        setItems(res.value || []);
+        const [proyRes, actRes] = await Promise.all([
+          callGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items?$expand=fields&$top=100`),
+          callGraph(`/sites/${siteId}/lists/${LISTS.activos}/items?$expand=fields&$top=500`),
+        ]);
+        setItems(proyRes.value || []);
+        const aMap = {};
+        (actRes.value || []).forEach(a => { aMap[String(a.id)] = a; });
+        setActivosMap(aMap);
       } catch(e) { setError(e.message); }
       finally { setLoading(false); }
     }
     load();
   }, [siteId]);
+
+  // Helper: get Loan from activo linked to a project
+  function getProjectLoanAmount(proy) {
+    const f = proy.fields || {};
+    const activoId = String(f.ActivoRelacionadoLookupId || f.ActivoRelacionadoId || f['ActivoRelacionado'] || '');
+    if (activoId && activosMap[activoId]) {
+      return parseFloat(activosMap[activoId].fields?.Loan || 0);
+    }
+    return 0;
+  }
 
   // Auto-open a project when navigating from Inversionistas portfolio
   useEffect(() => {
@@ -2455,6 +2744,27 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     if (mils.confirmaciones_emitidas) {
       delete mils.confirmaciones_emitidas; // Removed milestone
     }
+    // Auto-complete all milestones for E7 Post-Closing projects (historical data)
+    const etapaActual = item.fields?.EtapaActual || '';
+    if (etapaActual.includes('Post') || etapaActual.includes('7')) {
+      const allMilestoneIds = [
+        'bp1_elaborado','bp1_aprobado','loi_redactado','loi_firmado','bp2_elaborado','bp2_aprobado',
+        'brochure_onepager_realizado','brochure_onepager_aprobado','brochure_full_realizado','brochure_full_aprobado',
+        'ein_obtenido','ts_proyecto','llc_constituida','cuenta_bancaria',
+        'inv_completo','purchase_completo','fondeo_completo',
+        'cierre_ejecutado','momento_wow','distribuciones'
+      ];
+      let changed = false;
+      allMilestoneIds.forEach(id => { if (!mils[id]) { mils[id] = true; changed = true; } });
+      if (changed) {
+        // Persist auto-completed milestones to SharePoint
+        const saveBlob = { ...mils, ...Object.fromEntries(Object.entries(nts).map(([k,v]) => [`notes_${k}`, v])) };
+        patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${item.id}`, {
+          fields: { Milestones: JSON.stringify(saveBlob) }
+        }).then(() => console.log('[GWealth] Auto-completed milestones for E7 project:', item.fields.Title))
+          .catch(e => console.warn('[GWealth] Could not save auto-completed milestones:', e.message));
+      }
+    }
     setMilestones(mils);
     setNotes(nts);
     setForm({
@@ -2472,27 +2782,52 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       NumeroCuentaProyecto: item.fields.NumeroCuentaProyecto || "",
       RoutingProyecto: item.fields.RoutingProyecto || ""
     });
-    // Load participaciones blob and refresh investor data
-    try {
-      const partRaw = item.fields?.Participaciones;
-      let parts = partRaw ? JSON.parse(partRaw) : [];
-      // Refresh investor data from allInversionistas (name, type, estado)
-      parts = parts.map(p => {
-        const inv = allInversionistas.find(i => String(i.id) === String(p.invId));
-        if (inv) {
-          const f = inv.fields || {};
-          return {
-            ...p,
-            nombre: f.Title || p.nombre,
-            email: f.field_2 || p.email,
-            tipo: (f.field_1 || '').toLowerCase().includes('jur') ? 'juridica' : (f.field_1 ? 'natural' : p.tipo),
-            esProspecto: f.Estado !== 'Activo',
-          };
+    // Load participaciones from SharePoint list and refresh investor data
+    (async () => {
+      try {
+        let parts = await loadParticipacionesFromSP(siteInv, item.id);
+        // Refresh investor data from allInversionistas (name, type, estado)
+        parts = parts.map(p => {
+          const inv = allInversionistas.find(i => String(i.id) === String(p.invId));
+          if (inv) {
+            const f = inv.fields || {};
+            return {
+              ...p,
+              nombre: f.Title || p.nombre,
+              email: f.field_2 || p.email,
+              tipo: (f.field_1 || '').toLowerCase().includes('jur') ? 'juridica' : (f.field_1 ? 'natural' : p.tipo),
+              esProspecto: f.Estado !== 'Activo',
+            };
+          }
+          return p;
+        });
+        // For E7 projects: auto-set investor documentation to "firmado" (historical data)
+        const etapa = item.fields?.EtapaActual || '';
+        if ((etapa.includes('Post') || etapa.includes('7')) && parts.length > 0) {
+          let docsChanged = false;
+          parts = parts.map(p => {
+            const updates = {};
+            if (p.ddEstado !== 'firmado') { updates.ddEstado = 'firmado'; docsChanged = true; }
+            if (p.tsEstado !== 'firmado') { updates.tsEstado = 'firmado'; docsChanged = true; }
+            if (p.saEstado !== 'firmado') { updates.saEstado = 'firmado'; docsChanged = true; }
+            if (p.esProspecto) { updates.esProspecto = false; docsChanged = true; }
+            return Object.keys(updates).length > 0 ? { ...p, ...updates } : p;
+          });
+          if (docsChanged) {
+            // Persist doc statuses to SharePoint Inversiones list
+            for (const p of parts) {
+              if (p._spId) {
+                patchGraph(`/sites/${siteInv}/lists/${LISTS.inversiones}/items/${p._spId}`, {
+                  fields: { DDestado: 'firmado', TSEstado: 'firmado', SAestado: 'firmado', Esprospecto: false }
+                }).catch(e => console.warn('[GWealth] Could not update inv doc status:', e.message));
+              }
+            }
+            console.log('[GWealth] Auto-set investor docs to firmado for E7 project:', item.fields.Title);
+          }
         }
-        return p;
-      });
-      setParticipaciones(parts);
-    } catch(e) { setParticipaciones([]); }
+        setParticipaciones(parts);
+      } catch(e) { setParticipaciones([]); }
+    })();
     // Load approval hitos for this project
     loadProjectHitos(item.id);
   }
@@ -2574,12 +2909,10 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   const etapaOrder = ['e2','e3','e4','e5','fondeo','post_closing'];
 
   function detectCurrentEtapa(milData) {
-    // E1 → E2: requires BP1 approved (via hito approval, not just milestone checkbox)
+    // Check BP1 approval: either via hito approval list OR via milestone checkbox (for historical data)
     const bp1Status = getHitoStatus('BP1');
-    const bp1Approved = bp1Status === 'Aprobado';
-    if (!bp1Approved) return 'Etapa 1: Evaluación';
+    const bp1Approved = bp1Status === 'Aprobado' || milData.bp1_aprobado === true;
 
-    // From E2 onwards: use milestone completion to detect stage
     // Find the highest completed section
     let highestCompleted = null;
     for (const secId of etapaOrder) {
@@ -2588,6 +2921,9 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       const allDone = section.milestones.every(m => milData[m.id]);
       if (allDone && section.milestones.length > 0) highestCompleted = secId;
     }
+
+    // If BP1 not approved and no sections completed, stay at E1
+    if (!bp1Approved && !highestCompleted) return 'Etapa 1: Evaluación';
     // If BP1 approved but no section fully completed yet, we're in E2
     if (!highestCompleted) return 'Etapa 2: LOI & BP';
     // The current etapa is the NEXT one after the highest completed
@@ -2764,11 +3100,38 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     if (!viewingProject) return;
     setSavingPart(true);
     try {
-      // Calcular MontoLevantado dinámico = suma GFD Recibido + FD Recibido
+      const proyId = viewingProject.id;
+      const proyTitle = viewingProject.fields?.Title || '';
+
+      // Sync each participacion to the SharePoint Participaciones list
+      for (const p of updated) {
+        const spFields = participacionToSpFields(p, proyId, proyTitle);
+        if (p._spId) {
+          // Update existing SP item
+          await patchGraph(`/sites/${siteInv}/lists/${LISTS.inversiones}/items/${p._spId}`, { fields: spFields });
+        } else {
+          // New item — create in SP
+          const created = await postGraph(`/sites/${siteInv}/lists/${LISTS.inversiones}/items`, { fields: spFields });
+          p._spId = created.id; // Store the new SP ID
+        }
+      }
+
+      // Delete removed items: items in SP that are not in updated array
+      const currentSpIds = new Set(updated.filter(p => p._spId).map(p => String(p._spId)));
+      const prevSpIds = participaciones.filter(p => p._spId).map(p => String(p._spId));
+      for (const oldId of prevSpIds) {
+        if (!currentSpIds.has(oldId)) {
+          try { await deleteGraph(`/sites/${siteInv}/lists/${LISTS.inversiones}/items/${oldId}`); }
+          catch(e) { console.warn('Could not delete participacion SP item:', e.message); }
+        }
+      }
+
+      // Calcular MontoLevantado dinámico = suma GFD Recibido + FD Recibido (solo capital inversionistas, Loan se suma al mostrar)
       const nuevoLevantado = updated.reduce((s, p) => s + (Number(p.gfdRecibido) || 0) + (Number(p.fdRecibido) || 0), 0);
-      await patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${viewingProject.id}`, {
-        fields: { Participaciones: JSON.stringify(updated), MontoLevantado: nuevoLevantado }
+      await patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${proyId}`, {
+        fields: { MontoLevantado: nuevoLevantado }
       });
+
       setParticipaciones(updated);
       // Actualizar estado local del proyecto y form
       setViewingProject(prev => ({
@@ -2787,12 +3150,12 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           let next = { ...prev };
           if (allE4Done && !prev.inv_completo) next.inv_completo = true;
           if (!allE4Done && prev.inv_completo) next.inv_completo = false;
-          // purchase_completo is managed manually via closing doc checkboxes, not auto-checked here
           if (allFondeoDone && !prev.fondeo_completo) next.fondeo_completo = true;
           if (!allFondeoDone && prev.fondeo_completo) next.fondeo_completo = false;
           return next;
         });
       }
+      _allInversionesCache = null; // Invalidate cache after save
       showToast('✅ Inversionistas actualizados', 'success');
     } catch(e) { showToast('❌ Error al guardar: ' + e.message, 'error'); }
     setSavingPart(false);
@@ -2822,16 +3185,16 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     } catch(e) {
       console.warn('Could not update Estado to Activo:', e.message);
     }
-    // Crear registro en lista Inversiones (trigger para Power Automate)
+    // Crear registro en lista Inversiones (ahora es la fuente de verdad)
     try {
       const invName = inv?.fields?.Title || entry.nombre;
-      await postGraph(`/sites/${siteInv}/lists/${LISTS.inversiones}/items`, {
+      const created = await postGraph(`/sites/${siteInv}/lists/${LISTS.inversiones}/items`, {
         fields: {
           Title: `${invName} — ${viewingProject.fields?.Title || ''}`,
           field_4: entry.porcentaje,
           field_5: entry.montoInversion,
-          field_8: entry.gfd,
-          field_12: entry.finalDeposit,
+          [invCol('Good Faith Deposit','GoodFaithDeposit')]: entry.gfd,
+          [invCol('Final Deposit','FinalDeposit')]: entry.finalDeposit,
           field_15: 'Pendiente',
           field_16: 'Pendiente',
           InversionistaLookupId: String(newPart.invId),
@@ -2839,6 +3202,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           Proyecto: String(viewingProject.id),
         }
       });
+      entry._spId = created.id; // Store SP ID so saveParticipaciones won't create duplicate
+      entry._spProyectoId = String(viewingProject.id);
     } catch(invErr) { console.warn('Could not create Inversiones record:', invErr.message); }
     const updated = [...participaciones, entry];
     setShowAddInv(false);
@@ -2885,25 +3250,28 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
         aporteEstado: 'pendiente',
         esProspecto: true,
       };
-      const updated = [...participaciones, entry];
-      await saveParticipaciones(updated);
-      // 3. Crear registro en lista Inversiones (trigger para Power Automate)
+      // 3. Crear registro en lista Inversiones (ahora es la fuente de verdad)
       try {
-        await postGraph(`/sites/${siteInv}/lists/${LISTS.inversiones}/items`, {
+        const invRecord = await postGraph(`/sites/${siteInv}/lists/${LISTS.inversiones}/items`, {
           fields: {
             Title: `${newProspect.Title} — ${viewingProject.fields?.Title || ''}`,
             field_4: pct,
             field_5: montoInv,
-            field_8: entry.gfd,
-            field_12: entry.finalDeposit,
+            [invCol('Good Faith Deposit','GoodFaithDeposit')]: entry.gfd,
+            [invCol('Final Deposit','FinalDeposit')]: entry.finalDeposit,
             field_15: 'Pendiente',
             field_16: 'Pendiente',
             InversionistaLookupId: String(created.id),
             NombreProyecto: viewingProject.fields?.Title || '',
             Proyecto: String(viewingProject.id),
+            [invCol('Esprospecto','Esprospecto')]: true,
           }
         });
+        entry._spId = invRecord.id; // Store SP ID so saveParticipaciones won't create duplicate
+        entry._spProyectoId = String(viewingProject.id);
       } catch(invErr) { console.warn('Could not create Inversiones record:', invErr.message); }
+      const updated = [...participaciones, entry];
+      await saveParticipaciones(updated);
       // 4. Recargar lista de inversionistas
       const res = await callGraph(`/sites/${siteInv}/lists/${LISTS.inversionistas}/items?$expand=fields&$top=500`);
       setAllInversionistas(res.value || []);
@@ -2934,10 +3302,25 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   function savePartToSP() {
     saveParticipaciones([...participaciones]);
   }
-  // Legacy: immediate save (used for dropdowns/selects that should persist immediately)
-  function updatePartField(idx, field, val) {
+  // Immediate save for a single field on a single item (used for dropdowns/selects)
+  async function updatePartField(idx, field, val) {
     const updated = participaciones.map((p,i) => i===idx ? {...p, [field]:val} : p);
-    saveParticipaciones(updated);
+    const item = updated[idx];
+    // Optimized: if item already exists in SP, patch just this item
+    if (item._spId) {
+      try {
+        const spFields = participacionToSpFields(item, viewingProject.id, viewingProject.fields?.Title || '');
+        await patchGraph(`/sites/${siteInv}/lists/${LISTS.inversiones}/items/${item._spId}`, { fields: spFields });
+        setParticipaciones(updated);
+        // Update MontoLevantado = investor contributions only (Loan se suma al mostrar)
+        const nuevoLevantado = updated.reduce((s, p) => s + (Number(p.gfdRecibido) || 0) + (Number(p.fdRecibido) || 0), 0);
+        await patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${viewingProject.id}`, { fields: { MontoLevantado: nuevoLevantado } });
+        setViewingProject(prev => ({ ...prev, fields: { ...prev.fields, MontoLevantado: nuevoLevantado } }));
+        showToast('✅ Inversionistas actualizados', 'success');
+      } catch(e) { showToast('❌ Error: ' + e.message, 'error'); }
+    } else {
+      saveParticipaciones(updated);
+    }
   }
 
   function openAbonoModal(idx) {
@@ -3020,8 +3403,10 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     const p = viewingProject;
     const overallPct = getOverallProgress();
     const target = parseFloat(p.fields?.MontoTarget) || 0;
-    // Monto Levantado = suma dinámica de GFD Recibido + FD Recibido de todos los inversionistas
-    const levantado = participaciones.reduce((s, pt) => s + (Number(pt.gfdRecibido) || 0) + (Number(pt.fdRecibido) || 0), 0);
+    // Monto Levantado = suma dinámica de GFD Recibido + FD Recibido de todos los inversionistas + Loan del activo
+    const investorCapital = participaciones.reduce((s, pt) => s + (Number(pt.gfdRecibido) || 0) + (Number(pt.fdRecibido) || 0), 0);
+    const loanAmount = parseFloat(activoData?.Loan || 0);
+    const levantado = investorCapital + loanAmount;
     const fundingPct = target > 0 ? Math.min(100, Math.round((levantado / target) * 100)) : 0;
 
     const tabs = [
@@ -4205,6 +4590,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                                 Participaci_x00f3_n: Number(part.porcentaje) || 0,
                                                 MontoGFD: Number(part.gfd) || 0,
                                                 MontoFinalDeposit: Number(part.finalDeposit) || 0,
+                                                InversionesItemId: String(part._spId || ''),
                                               }
                                             });
                                             showToast(`💸 Solicitud de pago creada para ${part.nombre}`);
@@ -4223,6 +4609,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                       <button
                                         onClick={async () => {
                                           try {
+                                            const totalRecibido = (Number(part.gfdRecibido) || 0) + (Number(part.fdRecibido) || 0);
+                                            const saldoPendiente = (Number(part.montoInversion) || 0) - totalRecibido;
                                             await postGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items`, {
                                               fields: {
                                                 Title: `Confirmar Pago — ${part.nombre} — ${viewingProject.fields?.Title || ''}`,
@@ -4235,6 +4623,9 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                                 Participaci_x00f3_n: Number(part.porcentaje) || 0,
                                                 MontoGFD: Number(part.gfd) || 0,
                                                 MontoFinalDeposit: Number(part.finalDeposit) || 0,
+                                                InversionesItemId: String(part._spId || ''),
+                                                MontoRecibidoTotal: totalRecibido,
+                                                SaldoPendiente: saldoPendiente,
                                               }
                                             });
                                             showToast(`✅ Confirmación de pago creada para ${part.nombre}`);
@@ -4696,7 +5087,6 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
               <th>Progreso Hitos</th>
               <th>Monto Target</th>
               <th>Monto Levantado</th>
-              <th>Fecha LOI</th>
               <th>Cierre Est.</th>
               <th>Estado LLC</th>
             </tr>
@@ -4730,8 +5120,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                     </div>
                   </td>
                   <td>{fmtMoney(p.fields.MontoTarget)}</td>
-                  <td style={{color:'var(--gw-success)'}}>{fmtMoney(calcLevantado(p.fields?.Participaciones))}</td>
-                  <td style={{fontSize:12}}>{fmtDate(p.fields.FechaLOI)}</td>
+                  <td style={{color:'var(--gw-success)'}}>{fmtMoney((parseFloat(p.fields?.MontoLevantado || 0)) + getProjectLoanAmount(p))}</td>
                   <td style={{fontSize:12}}>{fmtDate(p.fields.FechaCierreEstimado)}</td>
                   <td>{getEtapaBadge(p.fields.EstadoLLC)}</td>
                 </tr>
@@ -5353,6 +5742,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
   const [obsText, setObsText]       = useState('');
   const [savingObs, setSavingObs]   = useState(false);
   const [invDocs, setInvDocs]       = useState([]);
+  const [viewMode, setViewMode]     = useState('list'); // 'cards' | 'list'
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [projDocs, setProjDocs]     = useState({});
   const invFileRef = React.useRef(null);
@@ -5378,17 +5768,18 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
       setInvDocs(files);
     } catch(e) { console.error('Error loading inv docs:', e); setInvDocs([]); }
 
-    // Load project docs for each project in portfolio
+    // Load project docs for each project in portfolio (using participaciones list)
     if (proyectos.length > 0) {
       const docsByProy = {};
+      const invParts = portfolioParts.filter(pt => String(pt.invId) === String(invId));
+      const invProyIds = new Set(invParts.map(pt => String(pt._spProyectoId)));
       for (const p of proyectos) {
-        try {
-          const parts = JSON.parse(p.fields?.Participaciones || '[]');
-          if (parts.some(pt => pt.invId === invId)) {
+        if (invProyIds.has(String(p.id))) {
+          try {
             const pFiles = await getListItemAttachments(siteProy, LISTS.proyectos, p.id);
             if (pFiles.length > 0) docsByProy[p.id] = { title: p.fields?.Title || '—', files: pFiles };
-          }
-        } catch {}
+          } catch {}
+        }
       }
       setProjDocs(docsByProy);
     }
@@ -5431,6 +5822,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
     setInvForm({
       Title:   f.Title   || '',
       field_1: f.field_1 || '',
+      EIN: f.EIN || '',
       field_2: f.field_2 || '',
       field_3: f.field_3 || '',
       field_4: f.field_4 || '',
@@ -5460,7 +5852,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
       // Build fields object, only including non-empty values and using null for cleared fields
       const fields = {};
       const fieldMap = {
-        Title: invForm.Title, field_1: invForm.field_1, field_2: invForm.field_2,
+        Title: invForm.Title, field_1: invForm.field_1, EIN: invForm.EIN, field_2: invForm.field_2,
         field_3: invForm.field_3, field_4: invForm.field_4, field_5: invForm.field_5,
         field_6: invForm.field_6, field_7: invForm.field_7, field_8: invForm.field_8,
         field_9: invForm.field_9, field_10: invForm.field_10,
@@ -5485,7 +5877,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
         console.warn('[GWealth] Full save failed, trying core fields only:', e1.message);
         // Retry with only standard fields (exclude potentially missing columns)
         const coreFields = {};
-        ['Title','field_1','field_2','field_3','field_4','field_5','field_6','field_7','field_8','field_9','field_10','field_14','field_15','field_16','field_17','field_18','field_20','Broker','ProyectoRelacionado'].forEach(k => {
+        ['Title','field_1','EIN','field_2','field_3','field_4','field_5','field_6','field_7','field_8','field_9','field_10','field_14','field_15','field_16','field_17','field_18','field_20','Broker','ProyectoRelacionado'].forEach(k => {
           if (fields[k] !== undefined) coreFields[k] = fields[k];
         });
         await patchGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items/${viewingInv.id}`, { fields: coreFields });
@@ -5516,25 +5908,28 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
     load();
   }, [siteId]);
 
+  const [portfolioParts, setPortfolioParts] = useState([]);
+
   async function loadProyectos() {
     if (proyectos.length > 0 || loadingProy || !siteProy) return;
     setLoadingProy(true);
     try {
-      const res = await callGraph(`/sites/${siteProy}/lists/${LISTS.proyectos}/items?$expand=fields&$top=500`);
-      setProyectos(res.value || []);
+      const [proyRes, partsData] = await Promise.all([
+        callGraph(`/sites/${siteProy}/lists/${LISTS.proyectos}/items?$expand=fields&$top=500`),
+        loadAllParticipacionesSP(siteId),
+      ]);
+      setProyectos(proyRes.value || []);
+      setPortfolioParts(partsData || []);
     } catch(e) { console.error('Error loading proyectos for portfolio:', e); }
     finally { setLoadingProy(false); }
   }
 
   function getPortfolio(invId) {
-    return proyectos.reduce((acc, p) => {
-      try {
-        const parts = JSON.parse(p.fields?.Participaciones || '[]');
-        const part = parts.find(x => x.invId === invId);
-        if (part) acc.push({ proyecto: p, participacion: part });
-      } catch {}
-      return acc;
-    }, []);
+    const invParts = portfolioParts.filter(pt => String(pt.invId) === String(invId));
+    return invParts.map(part => {
+      const proyecto = proyectos.find(p => String(p.id) === String(part._spProyectoId));
+      return proyecto ? { proyecto, participacion: part } : null;
+    }).filter(Boolean);
   }
 
   function getTipoInv(f) {
@@ -5741,6 +6136,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:20}}>
                   {[
                     { key:'Title',   label:'Nombre / Razón Social' },
+                    { key:'EIN',     label:'EIN' },
                     { key:'field_9', label:'Representante Legal' },
                     { key:'field_10',label:'Estado KYC / DD' },
                   ].map(({key,label}) => (
@@ -5881,6 +6277,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                   <FieldRow label="Correo Electrónico"     value={viewingInv?.fields?.field_2} icon="✉️" />
                   <FieldRow label="Teléfono"               value={viewingInv?.fields?.field_3} icon="📞" />
                   <FieldRow label="Tipo de Persona"        value={tipo==='juridica' ? 'Persona Jurídica / LLC' : 'Persona Natural'} icon={tipo==='juridica'?'🏢':'👤'} />
+                  <FieldRow label="EIN"                    value={viewingInv?.fields?.EIN} icon="🔢" />
                   {!viewingInv?.fields?.field_2 && !viewingInv?.fields?.field_3 && (
                     <div style={{color:'var(--gw-muted)', fontSize:13, textAlign:'center', padding:'8px 0', fontStyle:'italic'}}>Sin datos de contacto registrados</div>
                   )}
@@ -6103,6 +6500,18 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
         <span style={{fontSize:12, color:'var(--gw-muted)', whiteSpace:'nowrap'}}>
           {filtered.length} inversionista{filtered.length !== 1 ? 's' : ''}
         </span>
+        <div style={{display:'flex', gap:2, background:'var(--gw-page-bg)', borderRadius:8, border:'1px solid var(--gw-border)', padding:2}}>
+          <button onClick={() => setViewMode('list')}
+            style={{padding:'6px 10px', borderRadius:6, border:'none', cursor:'pointer', fontSize:14,
+              background: viewMode==='list' ? 'var(--gw-cyan)' : 'transparent',
+              color: viewMode==='list' ? 'white' : 'var(--gw-muted)', transition:'all 0.2s'
+            }} title="Vista de lista">☰</button>
+          <button onClick={() => setViewMode('cards')}
+            style={{padding:'6px 10px', borderRadius:6, border:'none', cursor:'pointer', fontSize:14,
+              background: viewMode==='cards' ? 'var(--gw-cyan)' : 'transparent',
+              color: viewMode==='cards' ? 'white' : 'var(--gw-muted)', transition:'all 0.2s'
+            }} title="Vista de tarjetas">▦</button>
+        </div>
       </div>
 
       {/* Empty state */}
@@ -6114,8 +6523,91 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
         </div>
       )}
 
+      {/* List view */}
+      {filtered.length > 0 && viewMode === 'list' && (
+        <div style={{background:'var(--gw-card)', border:'1px solid var(--gw-border)', borderRadius:12, overflowX:'auto'}}>
+          <table style={{width:'100%', borderCollapse:'collapse', minWidth:900}}>
+            <thead>
+              <tr style={{background:'var(--gw-page-bg)', borderBottom:'2px solid var(--gw-border)'}}>
+                <th style={{padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Nombre</th>
+                <th style={{padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Tipo</th>
+                <th style={{padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Estado</th>
+                <th style={{padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Correo</th>
+                <th style={{padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Teléfono</th>
+                <th style={{padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Ubicación</th>
+                <th style={{padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Broker</th>
+                <th style={{padding:'10px 14px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(item => {
+                const f = item.fields || {};
+                const tipo = getTipoInv(f);
+                const initials = getInitials(f.Title);
+                return (
+                  <tr key={item.id} onClick={() => openInv(item)}
+                    style={{borderBottom:'1px solid var(--gw-border)', cursor:'pointer', transition:'background 0.15s'}}
+                    onMouseEnter={e => e.currentTarget.style.background='rgba(26,143,168,0.04)'}
+                    onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                    <td style={{padding:'10px 14px'}}>
+                      <div style={{display:'flex', alignItems:'center', gap:10}}>
+                        <div style={{
+                          width:32, height:32, borderRadius:8, flexShrink:0,
+                          background: tipo==='juridica' ? 'rgba(26,143,168,0.15)' : 'rgba(46,204,138,0.15)',
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize: tipo==='juridica' ? 15 : 11, fontWeight:800,
+                          color: tipo==='juridica' ? 'var(--gw-cyan)' : 'var(--gw-success)'
+                        }}>{tipo==='juridica' ? '🏢' : initials}</div>
+                        <span style={{fontWeight:600, fontSize:13, color:'var(--gw-heading)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:200}}>{f.Title || '—'}</span>
+                      </div>
+                    </td>
+                    <td style={{padding:'10px 14px', fontSize:12, color:'var(--gw-muted)'}}>{tipo==='juridica' ? 'Jurídica' : 'Natural'}</td>
+                    <td style={{padding:'10px 14px'}}>{getEtapaBadge(f.Estado || 'Prospecto')}</td>
+                    <td style={{padding:'10px 14px', fontSize:12, color:'var(--gw-muted)', maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{f.field_2 || '—'}</td>
+                    <td style={{padding:'10px 14px', fontSize:12, color:'var(--gw-muted)', whiteSpace:'nowrap'}}>{f.field_3 || '—'}</td>
+                    <td style={{padding:'10px 14px', fontSize:12, color:'var(--gw-muted)', whiteSpace:'nowrap'}}>{[f.field_5, f.field_7].filter(Boolean).join(', ') || '—'}</td>
+                    <td style={{padding:'10px 14px'}}>
+                      {f.Broker ? <span style={{fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:99, background:'rgba(232,160,48,0.12)', color:'var(--gw-warning)', whiteSpace:'nowrap'}}>{f.Broker}</span> : <span style={{fontSize:12, color:'var(--gw-muted)'}}>—</span>}
+                    </td>
+                    <td style={{padding:'10px 14px', textAlign:'center'}}>
+                      <div style={{display:'flex', gap:4, justifyContent:'center'}}>
+                        <button onClick={e => { e.stopPropagation(); setViewingInv(item); openEditInv(item); }}
+                          style={{fontSize:11, background:'none', border:'1px solid var(--gw-border)', borderRadius:6, padding:'3px 8px', cursor:'pointer', color:'var(--gw-muted)', transition:'all 0.15s'}}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor='var(--gw-cyan)'; e.currentTarget.style.color='var(--gw-cyan)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor='var(--gw-border)'; e.currentTarget.style.color='var(--gw-muted)'; }}
+                        >✏️</button>
+                        <button onClick={e => { e.stopPropagation(); setObsText(f.field_20 || ''); setObsModal(item); }}
+                          style={{fontSize:11, background:'none', border:'1px solid var(--gw-border)', borderRadius:6, padding:'3px 8px', cursor:'pointer', color:'var(--gw-muted)', transition:'all 0.15s', position:'relative'}}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor='var(--gw-warning)'; e.currentTarget.style.color='var(--gw-warning)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor='var(--gw-border)'; e.currentTarget.style.color='var(--gw-muted)'; }}
+                        >📝{f.field_20 ? '●' : ''}</button>
+                        {(f.Estado === 'Prospecto' || !f.Estado) && (
+                          <button onClick={async e => {
+                            e.stopPropagation();
+                            if (!confirm(`¿Activar a ${f.Title}? Esto creará sus carpetas en SharePoint.`)) return;
+                            try {
+                              await patchGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items/${item.id}`, { fields: { Estado: 'Activo' } });
+                              setItems(prev => prev.map(i => i.id === item.id ? {...i, fields: {...i.fields, Estado: 'Activo'}} : i));
+                              showToast(`✅ ${f.Title} activado`);
+                            } catch(err) { showToast('❌ Error: ' + err.message, 'error'); }
+                          }}
+                            style={{fontSize:11, background:'rgba(46,204,138,0.1)', border:'1px solid rgba(46,204,138,0.3)', borderRadius:6, padding:'3px 8px', cursor:'pointer', color:'var(--gw-success)', fontWeight:700, transition:'all 0.15s'}}
+                            onMouseEnter={e => e.currentTarget.style.background='rgba(46,204,138,0.2)'}
+                            onMouseLeave={e => e.currentTarget.style.background='rgba(46,204,138,0.1)'}
+                          >✅</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Cards grid */}
-      {filtered.length > 0 && (
+      {filtered.length > 0 && viewMode === 'cards' && (
         <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(290px,1fr))', gap:16}}>
           {filtered.map(item => {
             const f       = item.fields || {};
