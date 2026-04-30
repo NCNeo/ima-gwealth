@@ -1085,9 +1085,9 @@ async function postGraph(endpoint, body) {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const errBody = await res.text().catch(() => '');
-    console.error('Graph POST error:', res.status, errBody);
-    throw new Error(`Error: ${res.status}`);
+    let detail = '';
+    try { const errBody = await res.json(); detail = JSON.stringify(errBody.error || errBody); console.error('Graph POST error:', res.status, errBody); } catch(_){ console.error('Graph POST error:', res.status); }
+    throw new Error(`Error ${res.status}: ${detail}`);
   }
   return await res.json();
 }
@@ -1106,7 +1106,11 @@ async function patchGraph(endpoint, body) {
     },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Error: ${res.status}`);
+  if (!res.ok) {
+    let detail = '';
+    try { const errBody = await res.json(); detail = JSON.stringify(errBody.error || errBody); } catch(_){}
+    throw new Error(`Error ${res.status}: ${detail}`);
+  }
   return await res.json();
 }
 
@@ -1388,19 +1392,32 @@ async function resolveUser(siteId, lookupId) {
 }
 
 function getEtapaBadge(etapa) {
+  // Handle arrays from SharePoint multi-select Choice columns
+  const val = Array.isArray(etapa) ? (etapa[0] || '') : (etapa || '');
+
   const map = {
-    "Etapa 1: Evaluación": { cls: "badge-orange", label: "E1 Evaluación" },
+    // New E1-E7 format (Activos & Proyectos)
+    "E1 — En evaluación": { cls: "badge-orange", label: "E1 EVALUACIÓN" },
+    "E2 — LOI & BP": { cls: "badge-orange", label: "E2 LOI & BP" },
+    "E3 — Onboarding": { cls: "badge-orange", label: "E3 ONBOARDING" },
+    "E4 — Investors": { cls: "badge-blue", label: "E4 INVESTORS" },
+    "E5 — Purchase": { cls: "badge-blue", label: "E5 PURCHASE" },
+    "E6 — Funding": { cls: "badge-gold", label: "E6 FUNDING" },
+    "E7 — Post-Closing": { cls: "badge-green", label: "E7 POST-CLOSING" },
+    // Legacy format (for existing data not yet migrated)
+    "Etapa 1: Evaluación": { cls: "badge-orange", label: "E1 EVALUACIÓN" },
     "Etapa 2: LOI & BP": { cls: "badge-orange", label: "E2 LOI & BP" },
-    "Etapa 3: Onboarding": { cls: "badge-orange", label: "E3 Onboarding" },
-    "Etapa 4: Inversionistas": { cls: "badge-blue", label: "E4 Investors" },
-    "Etapa 5: Due Diligence": { cls: "badge-blue", label: "E5 Purchase" },
-    "Etapa 6: Fondeo": { cls: "badge-gold", label: "E6 Funding" },
-    "Etapa 7: Post-Closing": { cls: "badge-green", label: "E7 Post-Closing" },
+    "Etapa 3: Onboarding": { cls: "badge-orange", label: "E3 ONBOARDING" },
+    "Etapa 4: Inversionistas": { cls: "badge-blue", label: "E4 INVESTORS" },
+    "Etapa 5: Due Diligence": { cls: "badge-blue", label: "E5 PURCHASE" },
+    "Etapa 6: Fondeo": { cls: "badge-gold", label: "E6 FUNDING" },
+    "Etapa 7: Post-Closing": { cls: "badge-green", label: "E7 POST-CLOSING" },
     "Etapa 2: Negociación": { cls: "badge-orange", label: "E2 LOI & BP" },
-    "Etapa 3: Due Diligence": { cls: "badge-orange", label: "E5 Due Diligence" },
-    "Etapa 4: Funding": { cls: "badge-blue", label: "E6 Fondeo" },
-    "Etapa 5: Cierre": { cls: "badge-gold", label: "E6 Fondeo" },
-    "Etapa 6: Post Closing": { cls: "badge-green", label: "E7 Post-Closing" },
+    "Etapa 3: Due Diligence": { cls: "badge-orange", label: "E5 PURCHASE" },
+    "Etapa 4: Funding": { cls: "badge-blue", label: "E6 FUNDING" },
+    "Etapa 5: Cierre": { cls: "badge-gold", label: "E6 FUNDING" },
+    "Etapa 6: Post Closing": { cls: "badge-green", label: "E7 POST-CLOSING" },
+    // Status badges
     "En evaluación": { cls: "badge-orange", label: "En Evaluación" },
     "En Evaluación": { cls: "badge-orange", label: "En Evaluación" },
     "En proceso": { cls: "badge-blue", label: "En Proceso" },
@@ -1413,20 +1430,20 @@ function getEtapaBadge(etapa) {
     "Pendiente de Generación": { cls: "badge-orange", label: "Pendiente" },
     "Enviado a Aprobación": { cls: "badge-blue", label: "En Revisión" },
     "Cancelado": { cls: "badge-red", label: "Cancelado" },
+    "Declinado": { cls: "badge-red", label: "Declinado" },
     "Descartado": { cls: "badge-red", label: "Descartado" },
     "Inactivo": { cls: "badge-red", label: "Inactivo" },
   };
-  // Fallback: try to match partial strings for etapas that don't exactly match
-  let b = map[etapa];
-  if (!b && etapa) {
-    const lower = etapa.toLowerCase();
-    if (lower.includes('post') || lower.includes('closing') || lower.includes('e7')) b = { cls: "badge-green", label: etapa };
-    else if (lower.includes('cancel') || lower.includes('descart') || lower.includes('inactiv')) b = { cls: "badge-red", label: etapa };
-    else if (lower.includes('fondeo') || lower.includes('funding') || lower.includes('e6')) b = { cls: "badge-gold", label: etapa };
-    else if (lower.includes('investor') || lower.includes('inversionista') || lower.includes('e4') || lower.includes('purchase') || lower.includes('e5') || lower.includes('diligence')) b = { cls: "badge-blue", label: etapa };
-    else if (lower.includes('onboarding') || lower.includes('e3') || lower.includes('loi') || lower.includes('e2') || lower.includes('evaluaci')) b = { cls: "badge-orange", label: etapa };
+  let b = map[val];
+  if (!b && val) {
+    const lower = val.toLowerCase();
+    if (lower.includes('post') || lower.includes('closing') || lower.includes('e7')) b = { cls: "badge-green", label: val };
+    else if (lower.includes('cancel') || lower.includes('descart') || lower.includes('inactiv') || lower.includes('declin')) b = { cls: "badge-red", label: val };
+    else if (lower.includes('fondeo') || lower.includes('funding') || lower.includes('e6')) b = { cls: "badge-gold", label: val };
+    else if (lower.includes('investor') || lower.includes('inversionista') || lower.includes('e4') || lower.includes('purchase') || lower.includes('e5') || lower.includes('diligence')) b = { cls: "badge-blue", label: val };
+    else if (lower.includes('onboarding') || lower.includes('e3') || lower.includes('loi') || lower.includes('e2') || lower.includes('evaluaci') || lower.includes('e1')) b = { cls: "badge-orange", label: val };
   }
-  if (!b) b = { cls: "badge-gray", label: etapa || "—" };
+  if (!b) b = { cls: "badge-gray", label: val || "—" };
   return <span className={`badge ${b.cls}`}><span className="badge-dot"></span>{b.label}</span>;
 }
 
@@ -1442,14 +1459,27 @@ function fmtMoney(val) {
 // Funciones para hitos de proyectos
 function getProjectStageIndex(etapa) {
   const stages = [
-    "Etapa 1: Evaluación",
-    "Etapa 2: Negociación",
-    "Etapa 3: Due Diligence",
-    "Etapa 4: Funding",
-    "Etapa 5: Cierre",
-    "Etapa 6: Post Closing"
+    "E1 — En evaluación",
+    "E2 — LOI & BP",
+    "E3 — Onboarding",
+    "E4 — Investors",
+    "E5 — Purchase",
+    "E6 — Funding",
+    "E7 — Post-Closing"
   ];
-  return stages.indexOf(etapa);
+  let idx = stages.indexOf(etapa);
+  // Fallback: try legacy format
+  if (idx === -1 && etapa) {
+    const lower = etapa.toLowerCase();
+    if (lower.includes('e1') || lower.includes('evaluaci')) idx = 0;
+    else if (lower.includes('e2') || lower.includes('loi') || lower.includes('negoci')) idx = 1;
+    else if (lower.includes('e3') || lower.includes('onboarding') || lower.includes('diligence')) idx = 2;
+    else if (lower.includes('e4') || lower.includes('investor')) idx = 3;
+    else if (lower.includes('e5') || lower.includes('purchase') || lower.includes('cierre')) idx = 4;
+    else if (lower.includes('e6') || lower.includes('funding') || lower.includes('fondeo')) idx = 5;
+    else if (lower.includes('e7') || lower.includes('post') || lower.includes('closing')) idx = 6;
+  }
+  return idx;
 }
 
 function calculateMilestoneProgress(milestonesJson) {
@@ -1472,6 +1502,31 @@ function calculateMilestoneProgress(milestonesJson) {
 // A dynamic column discovery runs on first load to auto-detect any mismatches.
 let _invColumnMap = null; // Cached column mapping { displayName → internalName }
 
+// ─── Activos column discovery ──────────────────────────────────────
+let _actColumnMap = null;
+async function discoverActivosColumns(siteId) {
+  if (_actColumnMap) return _actColumnMap;
+  try {
+    const res = await callGraph(`/sites/${siteId}/lists/${LISTS.activos}/columns`);
+    const map = {};
+    (res.value || []).forEach(c => {
+      map[c.displayName] = c.name;
+      map[c.name] = c.name;
+    });
+    _actColumnMap = map;
+    console.log('[GWealth] Activos column map:', JSON.stringify(map, null, 2));
+    return map;
+  } catch(e) {
+    console.warn('[GWealth] Could not discover Activos columns:', e.message);
+    return {};
+  }
+}
+function actCol(displayName, fallback) {
+  if (_actColumnMap && _actColumnMap[displayName]) return _actColumnMap[displayName];
+  return fallback || displayName;
+}
+
+// ─── Inversiones column discovery ──────────────────────────────────
 async function discoverInversionesColumns(siteInvId) {
   if (_invColumnMap) return _invColumnMap;
   try {
@@ -1822,11 +1877,11 @@ function Dashboard({ siteInv, siteProy }) {
   // Approved projects = exclude Cancelado / Descartado
   const approvedProy = activeProy.filter(p => {
     const etapa = (p.fields?.EtapaActual || '').toLowerCase();
-    return !etapa.includes('cancelado') && !etapa.includes('descartado');
+    return !etapa.includes('cancelado') && !etapa.includes('descartado') && !etapa.includes('declinado');
   });
   const cancelledProy = activeProy.filter(p => {
     const etapa = (p.fields?.EtapaActual || '').toLowerCase();
-    return etapa.includes('cancelado') || etapa.includes('descartado');
+    return etapa.includes('cancelado') || etapa.includes('descartado') || etapa.includes('declinado');
   });
   // Set of activo IDs linked to cancelled/discarded projects
   const cancelledActivoIds = new Set(cancelledProy.map(p =>
@@ -2460,7 +2515,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   const [newAbono, setNewAbono] = useState({ fecha:'', monto:'', tipo:'gfd', referencia:'', notas:'' });
 
   const [form, setForm] = useState({
-    Title:"", NombreComercial:"", NombredelaLLC:"", EtapaActual:"Etapa 1: Evaluación",
+    Title:"", NombreComercial:"", NombredelaLLC:"", EtapaActual:"E1 — En evaluación",
     MontoTarget:"", MontoLevantado:"", FechaCierreEstimado:"",
     EstadoLLC:"Pendiente", EstadoCuentaBancaria:"Pendiente",
     IdLLC:"", BancoProyecto:"", NumeroCuentaProyecto:"", RoutingProyecto:""
@@ -2771,7 +2826,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       Title: item.fields.Title || "",
       NombreComercial: item.fields.NombreComercial || "",
       NombredelaLLC: item.fields.NombredelaLLC || "",
-      EtapaActual: item.fields.EtapaActual || "Etapa 1: Evaluación",
+      EtapaActual: item.fields.EtapaActual || "E1 — En evaluación",
       MontoTarget: item.fields.MontoTarget ? String(item.fields.MontoTarget) : "",
       MontoLevantado: item.fields.MontoLevantado ? String(item.fields.MontoLevantado) : "",
       FechaCierreEstimado: item.fields.FechaCierreEstimado ? item.fields.FechaCierreEstimado.split('T')[0] : "",
@@ -3709,7 +3764,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                   <div className="form-group">
                     <label className="form-label">Etapa Actual</label>
                     <select className="form-select" value={form.EtapaActual} onChange={e => setForm({...form, EtapaActual: e.target.value})}>
-                      {["Etapa 1: Evaluación","Etapa 2: LOI & BP","Etapa 3: Onboarding","Etapa 4: Inversionistas","Etapa 5: Due Diligence","Etapa 6: Fondeo","Etapa 7: Post-Closing"].map(e => <option key={e}>{e}</option>)}
+                      {["E1 — En evaluación","E2 — LOI & BP","E3 — Onboarding","E4 — Investors","E5 — Purchase","E6 — Funding","E7 — Post-Closing","Cancelado","Declinado"].map(e => <option key={e}>{e}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
@@ -4064,15 +4119,17 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                     const m = e.target.value;
                                     const gp = newPart.gfdPct||30;
                                     const fp = newPart.finalDepositPct||70;
-                                    const montoTarget = parseFloat(viewingProject?.fields?.MontoTarget) || 0;
-                                    const pct = (m && montoTarget > 0) ? ((parseFloat(m) / montoTarget) * 100).toFixed(2) : '';
+                                    const equityBase = parseFloat(activoData?.Equity) || 0;
+                                    const pct = (m && equityBase > 0) ? ((parseFloat(m) / equityBase) * 100).toFixed(2) : '';
                                     setNewPart(p=>({...p, montoInversion:m, porcentaje: pct, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''}));
                                   }}
                                   placeholder="Ej: 100000"
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
-                                {viewingProject?.fields?.MontoTarget && (
-                                  <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:3}}>Target: ${Number(viewingProject.fields.MontoTarget).toLocaleString()}</div>
-                                )}
+                                {activoData?.Equity ? (
+                                  <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:3}}>Equity: ${Number(activoData.Equity).toLocaleString()}</div>
+                                ) : viewingProject?.fields?.MontoTarget ? (
+                                  <div style={{fontSize:10, color:'var(--gw-warning)', marginTop:3}}>⚠ Sin Equity — Target: ${Number(viewingProject.fields.MontoTarget).toLocaleString()}</div>
+                                ) : null}
                               </div>
                               <div>
                                 <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación (calculado)</div>
@@ -4214,15 +4271,17 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                     const m = e.target.value;
                                     const gp = newProspect.gfdPct||30;
                                     const fp = newProspect.finalDepositPct||70;
-                                    const montoTarget = parseFloat(viewingProject?.fields?.MontoTarget) || 0;
-                                    const pct = (m && montoTarget > 0) ? ((parseFloat(m) / montoTarget) * 100).toFixed(2) : '';
+                                    const equityBase = parseFloat(activoData?.Equity) || 0;
+                                    const pct = (m && equityBase > 0) ? ((parseFloat(m) / equityBase) * 100).toFixed(2) : '';
                                     setNewProspect(p=>({...p, montoInversion:m, porcentaje: pct, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''}));
                                   }}
                                   placeholder="100,000"
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
-                                {viewingProject?.fields?.MontoTarget && (
-                                  <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:3}}>Target del proyecto: ${Number(viewingProject.fields.MontoTarget).toLocaleString()}</div>
-                                )}
+                                {activoData?.Equity ? (
+                                  <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:3}}>Equity: ${Number(activoData.Equity).toLocaleString()}</div>
+                                ) : viewingProject?.fields?.MontoTarget ? (
+                                  <div style={{fontSize:10, color:'var(--gw-warning)', marginTop:3}}>⚠ Sin Equity — Target: ${Number(viewingProject.fields.MontoTarget).toLocaleString()}</div>
+                                ) : null}
                               </div>
                               <div>
                                 <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación (calculado)</div>
@@ -5229,14 +5288,23 @@ function ActivosPage({ siteId }) {
         }
         
         // Buscar columna Estado
-        const estadoColumn = res.value.find(col => 
+        const estadoColumn = res.value.find(col =>
           col.name === 'Estado' || col.displayName === 'Estado'
         );
         if (estadoColumn && estadoColumn.choice) {
-          setEstados(estadoColumn.choice.choices || []);
+          const choices = estadoColumn.choice.choices || [];
+          console.log('[GWealth] Estado choices from SP:', choices);
+          setEstados(choices);
         } else {
-          // Fallback a valores por defecto si no se encuentra
-          setEstados(["Etapa 1: Evaluación", "Etapa 2: LOI & BP", "Etapa 3: Onboarding", "Etapa 4: Inversionistas", "Etapa 5: Due Diligence", "Etapa 6: Fondeo", "Etapa 7: Post-Closing", "Descartado"]);
+          setEstados(["E1 — En evaluación","E2 — LOI & BP","E3 — Onboarding","E4 — Investors","E5 — Purchase","E6 — Funding","E7 — Post-Closing","Cancelado","Declinado"]);
+        }
+
+        // Buscar columna Tipodeactivo para verificar nombre interno
+        const tipoCol = res.value.find(col =>
+          col.displayName === 'Tipo de activo' || col.name === 'Tipodeactivo'
+        );
+        if (tipoCol) {
+          console.log('[GWealth] Tipo de activo column:', { name: tipoCol.name, displayName: tipoCol.displayName, readOnly: tipoCol.readOnly });
         }
         // Buscar columna BrokerReferente
         const brokerRefCol = res.value.find(col =>
@@ -5251,7 +5319,7 @@ function ActivosPage({ siteId }) {
         console.error('Error cargando columnas:', e);
         setEvaluadores([]);
         setBrokerRefChoices([]);
-        setEstados(["Etapa 1: Evaluación", "Etapa 2: LOI & BP", "Etapa 3: Onboarding", "Etapa 4: Inversionistas", "Etapa 5: Due Diligence", "Etapa 6: Fondeo", "Etapa 7: Post-Closing", "Descartado"]);
+        setEstados(["E1 — En evaluación","E2 — LOI & BP","E3 — Onboarding","E4 — Investors","E5 — Purchase","E6 — Funding","E7 — Post-Closing","Cancelado","Declinado"]);
       } finally {
         setLoadingEvaluadores(false);
         setLoadingEstados(false);
@@ -5306,27 +5374,34 @@ function ActivosPage({ siteId }) {
     setShowModal(true);
   }
 
+  // Helper: SharePoint Choice columns may return arrays — extract first value as string
+  function choiceVal(v, fallback) {
+    if (Array.isArray(v)) return v[0] || fallback;
+    return v || fallback;
+  }
+
   function openEditModal(item) {
     setEditingItem(item);
+    const f = item.fields;
     setForm({
-      Title: item.fields.Title || "",
-      NombreComercial: item.fields.NombreComercial || "",
-      Tipodeactivo: item.fields.Tipodeactivo || "Oficina",
-      Estado: item.fields.Estado || "En evaluación",
-      Ubicaci_x00f3_n: item.fields.Ubicaci_x00f3_n || "",
-      Ciudad: item.fields.Ciudad || "",
-      Estado_x002f_Provincia: item.fields.Estado_x002f_Provincia || "Florida",
-      PrecioOferta: item.fields.PrecioOferta ? String(item.fields.PrecioOferta) : "",
-      CapRateDisplay: item.fields["CapRate_x0028__x0025__x0029_"] ? String(item.fields["CapRate_x0028__x0025__x0029_"] * 100) : "",
-      Equity: item.fields.Equity ? String(item.fields.Equity) : "",
-      Loan: item.fields.Loan ? String(item.fields.Loan) : "",
-      EvaluadorName: item.fields.Evaluador || "",
-      CriterioLocation: item.fields.CriterioLocation || "Pendiente",
-      CriterioTenant: item.fields.CriterioTenant || "Pendiente",
-      CriterioTesisdeinversi_x00f3_n: item.fields.CriterioTesisdeinversi_x00f3_n || "Pendiente",
-      Fechadeidentificaci_x00f3_n: item.fields.Fechadeidentificaci_x00f3_n ? item.fields.Fechadeidentificaci_x00f3_n.split('T')[0] : "",
-      BrokerReferente: item.fields.BrokerReferente || "",
-      Observacionesdeevaluaci_x00f3_n: stripHtml(item.fields.Observacionesdeevaluaci_x00f3_n) || ""
+      Title: f.Title || "",
+      NombreComercial: f.NombreComercial || "",
+      Tipodeactivo: choiceVal(f.Tipodeactivo, "Oficina"),  // Extract string for dropdown display
+      Estado: choiceVal(f.Estado, ""),
+      Ubicaci_x00f3_n: f.Ubicaci_x00f3_n || "",
+      Ciudad: f.Ciudad || "",
+      Estado_x002f_Provincia: f.Estado_x002f_Provincia || "Florida",
+      PrecioOferta: f.PrecioOferta ? String(f.PrecioOferta) : "",
+      CapRateDisplay: f["CapRate_x0028__x0025__x0029_"] ? String(f["CapRate_x0028__x0025__x0029_"] * 100) : "",
+      Equity: f.Equity ? String(f.Equity) : "",
+      Loan: f.Loan ? String(f.Loan) : "",
+      EvaluadorName: choiceVal(f.Evaluador, ""),
+      CriterioLocation: choiceVal(f.CriterioLocation, "Pendiente"),
+      CriterioTenant: choiceVal(f.CriterioTenant, "Pendiente"),
+      CriterioTesisdeinversi_x00f3_n: choiceVal(f.CriterioTesisdeinversi_x00f3_n, "Pendiente"),
+      Fechadeidentificaci_x00f3_n: f.Fechadeidentificaci_x00f3_n ? f.Fechadeidentificaci_x00f3_n.split('T')[0] : "",
+      BrokerReferente: choiceVal(f.BrokerReferente, ""),
+      Observacionesdeevaluaci_x00f3_n: stripHtml(f.Observacionesdeevaluaci_x00f3_n) || ""
     });
     // Cargar adjuntos al abrir el modal
     loadAttachments(item.id);
@@ -5356,10 +5431,12 @@ function ActivosPage({ siteId }) {
   useEffect(() => {
     async function load() {
       try {
+        // Descubrir columnas de Activos para mapeo correcto
+        await discoverActivosColumns(siteId);
         const res = await callGraph(`/sites/${siteId}/lists/${LISTS.activos}/items?$expand=fields&$top=100`);
         setItems(res.value || []);
-      } catch(e) { 
-        setError(e.message); 
+      } catch(e) {
+        setError(e.message);
       }
       finally { setLoading(false); }
     }
@@ -5371,19 +5448,20 @@ function ActivosPage({ siteId }) {
   async function handleSave() {
     setSaving(true);
     try {
-      // Preparar datos para enviar a SharePoint
-      const dataToSend = {
+      // Construir objeto con todos los campos del formulario
+      // Tipodeactivo es multi-select (casillas) → debe enviarse como array
+      const allFields = {
         Title: form.Title,
-        NombreComercial: form.NombreComercial || null,
+        NombreComercial: form.NombreComercial || undefined,
         Tipodeactivo: form.Tipodeactivo,
         Estado: form.Estado,
         Ubicaci_x00f3_n: form.Ubicaci_x00f3_n,
         Ciudad: form.Ciudad,
         Estado_x002f_Provincia: form.Estado_x002f_Provincia,
-        PrecioOferta: form.PrecioOferta ? parseFloat(form.PrecioOferta) : null,
-        "CapRate_x0028__x0025__x0029_": form.CapRateDisplay ? parseFloat(form.CapRateDisplay) / 100 : null,
-        Equity: form.Equity ? parseFloat(form.Equity) : null,
-        Loan: form.Loan ? parseFloat(form.Loan) : null,
+        PrecioOferta: form.PrecioOferta ? parseFloat(form.PrecioOferta) : undefined,
+        "CapRate_x0028__x0025__x0029_": form.CapRateDisplay ? parseFloat(form.CapRateDisplay) / 100 : undefined,
+        Equity: form.Equity ? parseFloat(form.Equity) : undefined,
+        Loan: form.Loan ? parseFloat(form.Loan) : undefined,
         CriterioLocation: form.CriterioLocation,
         CriterioTenant: form.CriterioTenant,
         CriterioTesisdeinversi_x00f3_n: form.CriterioTesisdeinversi_x00f3_n,
@@ -5391,14 +5469,20 @@ function ActivosPage({ siteId }) {
         BrokerReferente: form.BrokerReferente,
         Observacionesdeevaluaci_x00f3_n: form.Observacionesdeevaluaci_x00f3_n
       };
-      
-      console.log("Enviando datos:", dataToSend);
-      
+
+      // Eliminar campos con valor null, undefined o vacío para evitar errores
+      const dataToSend = {};
+      Object.keys(allFields).forEach(k => {
+        const v = allFields[k];
+        if (v !== null && v !== undefined && v !== '') dataToSend[k] = v;
+      });
+
+      console.log("[GWealth] Enviando datos activo:", JSON.stringify(dataToSend, null, 2));
+
       if (editingItem) {
-        // Actualizar item existente
-        await patchGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${editingItem.id}`, { fields: dataToSend });
+        const endpoint = `/sites/${siteId}/lists/${LISTS.activos}/items/${editingItem.id}`;
+        await patchGraph(endpoint, { fields: dataToSend });
       } else {
-        // Crear nuevo item
         await postGraph(`/sites/${siteId}/lists/${LISTS.activos}/items`, { fields: dataToSend });
       }
       
@@ -5495,7 +5579,7 @@ function ActivosPage({ siteId }) {
                 <div className="form-group">
                   <label className="form-label">Tipo de Activo *</label>
                   <select className="form-select" value={form.Tipodeactivo} onChange={e => setForm({...form, Tipodeactivo: e.target.value})}>
-                    {["Oficina","Retail","Bodega","Multifamily","Hotel","Industrial","Terreno","Mixto"].map(e => <option key={e}>{e}</option>)}
+                    {["Oficina","Retail","Bodega","Mixto","Fundación","Retail- Bancario","Industrial"].map(e => <option key={e}>{e}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
