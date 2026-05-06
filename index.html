@@ -1527,6 +1527,10 @@ function actCol(displayName, fallback) {
 }
 
 // ─── Inversiones column discovery ──────────────────────────────────
+// Store doc status choices loaded from SharePoint columns
+let _docStatusChoices = { dd: null, ts: null, sa: null };
+function getDocStatusChoices() { return _docStatusChoices; }
+
 async function discoverInversionesColumns(siteInvId) {
   if (_invColumnMap) return _invColumnMap;
   try {
@@ -1538,6 +1542,23 @@ async function discoverInversionesColumns(siteInvId) {
     });
     _invColumnMap = map;
     console.log('[GWealth] Inversiones column map:', JSON.stringify(map, null, 2));
+
+    // Extract DD, TS, SA choice options from columns
+    (res.value || []).forEach(c => {
+      if ((c.name === 'DDestado' || c.displayName === 'DDestado') && c.choice?.choices) {
+        _docStatusChoices.dd = c.choice.choices.map(v => ({ value: v.toLowerCase(), label: v }));
+        console.log('[GWealth] DD choices from SP:', c.choice.choices);
+      }
+      if ((c.name === 'TSEstado' || c.displayName === 'TSEstado') && c.choice?.choices) {
+        _docStatusChoices.ts = c.choice.choices.map(v => ({ value: v.toLowerCase(), label: v }));
+        console.log('[GWealth] TS choices from SP:', c.choice.choices);
+      }
+      if ((c.name === 'SAestado' || c.displayName === 'SAestado') && c.choice?.choices) {
+        _docStatusChoices.sa = c.choice.choices.map(v => ({ value: v.toLowerCase(), label: v }));
+        console.log('[GWealth] SA choices from SP:', c.choice.choices);
+      }
+    });
+
     return map;
   } catch(e) {
     console.warn('[GWealth] Could not discover Inversiones columns:', e.message);
@@ -2771,13 +2792,24 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     setActivoData(null);
     // Resolve folder URL in background
     resolveProjectFolder(item.fields.Title || '');
-    // Load activo data (Equity, Loan) in background
+    // Load activo data (Equity, Loan, FechaCierreEstimado) in background
     (async () => {
       try {
         const activoId = await findActivoIdForProject(item);
         if (activoId) {
           const res = await callGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}?$expand=fields`);
-          setActivoData(res.fields || null);
+          const aFields = res.fields || null;
+          setActivoData(aFields);
+          // Sync FechaCierreEstimado from activo → proyecto if activo has it and project doesn't
+          if (aFields?.FechaCierreEstimado && !item.fields?.FechaCierreEstimado) {
+            try {
+              await patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${item.id}`, {
+                fields: { FechaCierreEstimado: aFields.FechaCierreEstimado }
+              });
+              setViewingProject(p => ({ ...p, fields: { ...p.fields, FechaCierreEstimado: aFields.FechaCierreEstimado } }));
+              console.log('[GWealth] FechaCierreEstimado synced from activo to project:', aFields.FechaCierreEstimado);
+            } catch(e2) { console.warn('[GWealth] Could not sync FechaCierreEstimado:', e2.message); }
+          }
         }
       } catch(e) { console.warn('[GWealth] Could not load activo data:', e.message); }
     })();
@@ -2840,10 +2872,18 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     // Load participaciones from SharePoint list and refresh investor data
     (async () => {
       try {
+        // Wait for fresh investor data before mapping names
+        let freshInvestors = allInversionistas;
+        try {
+          const invRes = await callGraph(`/sites/${siteInv}/lists/${LISTS.inversionistas}/items?$expand=fields&$top=500`);
+          freshInvestors = invRes.value || [];
+          setAllInversionistas(freshInvestors);
+        } catch(e) { console.warn('[GWealth] Could not refresh investors for project:', e.message); }
+
         let parts = await loadParticipacionesFromSP(siteInv, item.id);
-        // Refresh investor data from allInversionistas (name, type, estado)
+        // Refresh investor data from freshInvestors (name, type, estado)
         parts = parts.map(p => {
-          const inv = allInversionistas.find(i => String(i.id) === String(p.invId));
+          const inv = freshInvestors.find(i => String(i.id) === String(p.invId));
           if (inv) {
             const f = inv.fields || {};
             return {
@@ -3140,9 +3180,9 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   if (loading) return React.createElement(Loading);
 
   // ── DETAIL VIEW ────────────────────────────────────────────────────────────
-  // Load all investors (lazy, once per session)
-  async function loadAllInversionistas() {
-    if (allInversionistas.length > 0 || loadingInv || !siteInv) return;
+  // Load all investors (refresh each time a project is viewed to reflect edits)
+  async function loadAllInversionistas(force) {
+    if ((!force && allInversionistas.length > 0) || loadingInv || !siteInv) return;
     setLoadingInv(true);
     try {
       const res = await callGraph(`/sites/${siteInv}/lists/${LISTS.inversionistas}/items?$expand=fields&$top=500`);
@@ -3621,7 +3661,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
               <button key={tab.id}
                 onClick={() => {
                   setActiveTab(tab.id);
-                  if (tab.id === 'e4' || tab.id === 'e5' || tab.id === 'fondeo') loadAllInversionistas();
+                  if (tab.id === 'e4' || tab.id === 'e5' || tab.id === 'fondeo') loadAllInversionistas(true);
                 }}
                 style={{
                   padding:'10px 12px 8px', border:'none', cursor:'pointer',
@@ -4030,7 +4070,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                   recibido:  { bg:'rgba(46,204,138,0.12)', color:'var(--gw-success)', border:'rgba(46,204,138,0.4)' },
                 };
                 function StatusSelect({ value, field, idx, options }) {
-                  const st = statusStyles[value] || statusStyles.pendiente;
+                  const st = statusStyles[value] || statusStyles.enviado;
                   return (
                     <select value={value || 'pendiente'} onChange={e => updatePartField(idx, field, e.target.value)}
                       style={{ padding:'4px 8px', borderRadius:99, fontSize:11, fontWeight:700, border:`1px solid ${st.border}`, background:st.bg, color:st.color, cursor:'pointer', outline:'none', minWidth:85 }}>
@@ -4065,7 +4105,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                       </div>
                       {isE4 && (
                         <button
-                          onClick={() => { setShowAddInv(true); loadAllInversionistas(); }}
+                          onClick={() => { setShowAddInv(true); loadAllInversionistas(true); }}
                           style={{
                             padding:'9px 18px', background:'var(--gw-cyan)', color:'white',
                             border:'none', borderRadius:8, fontSize:13, cursor:'pointer',
@@ -4113,17 +4153,17 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 </select>
                               </div>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Monto Inversión (USD)</div>
-                                <input type="number" min="0" step="1000" value={newPart.montoInversion||''}
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación</div>
+                                <input type="number" min="0" max="100" step="0.01" value={newPart.porcentaje||''}
                                   onChange={e => {
-                                    const m = e.target.value;
+                                    const pct = e.target.value;
+                                    const equityBase = parseFloat(activoData?.Equity) || 0;
+                                    const m = (pct && equityBase > 0) ? (parseFloat(pct) / 100 * equityBase).toFixed(0) : '';
                                     const gp = newPart.gfdPct||30;
                                     const fp = newPart.finalDepositPct||70;
-                                    const equityBase = parseFloat(activoData?.Equity) || 0;
-                                    const pct = (m && equityBase > 0) ? ((parseFloat(m) / equityBase) * 100).toFixed(2) : '';
-                                    setNewPart(p=>({...p, montoInversion:m, porcentaje: pct, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''}));
+                                    setNewPart(p=>({...p, porcentaje: pct, montoInversion: m, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''}));
                                   }}
-                                  placeholder="Ej: 100000"
+                                  placeholder="Ej: 10"
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                                 {activoData?.Equity ? (
                                   <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:3}}>Equity: ${Number(activoData.Equity).toLocaleString()}</div>
@@ -4132,8 +4172,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 ) : null}
                               </div>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación (calculado)</div>
-                                <input type="number" min="0" max="100" step="0.01" value={newPart.porcentaje}
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Monto Inversión (calculado)</div>
+                                <input type="text" value={newPart.montoInversion ? `$${Number(newPart.montoInversion).toLocaleString()}` : ''}
                                   readOnly
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'rgba(26,143,168,0.06)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                               </div>
@@ -4265,17 +4305,17 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                             <div style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)', marginBottom:10, marginTop:6}}>Condiciones de Inversión</div>
                             <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14}}>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Monto Inversión (USD)</div>
-                                <input type="number" min="0" step="1000" value={newProspect.montoInversion}
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación</div>
+                                <input type="number" min="0" max="100" step="0.01" value={newProspect.porcentaje||''}
                                   onChange={e => {
-                                    const m = e.target.value;
+                                    const pct = e.target.value;
+                                    const equityBase = parseFloat(activoData?.Equity) || 0;
+                                    const m = (pct && equityBase > 0) ? (parseFloat(pct) / 100 * equityBase).toFixed(0) : '';
                                     const gp = newProspect.gfdPct||30;
                                     const fp = newProspect.finalDepositPct||70;
-                                    const equityBase = parseFloat(activoData?.Equity) || 0;
-                                    const pct = (m && equityBase > 0) ? ((parseFloat(m) / equityBase) * 100).toFixed(2) : '';
-                                    setNewProspect(p=>({...p, montoInversion:m, porcentaje: pct, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''}));
+                                    setNewProspect(p=>({...p, porcentaje: pct, montoInversion: m, gfd: m ? (parseFloat(m)*gp/100).toFixed(0) : '', finalDeposit: m ? (parseFloat(m)*fp/100).toFixed(0) : ''}));
                                   }}
-                                  placeholder="100,000"
+                                  placeholder="Ej: 10"
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                                 {activoData?.Equity ? (
                                   <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:3}}>Equity: ${Number(activoData.Equity).toLocaleString()}</div>
@@ -4284,8 +4324,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 ) : null}
                               </div>
                               <div>
-                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>% Participación (calculado)</div>
-                                <input type="number" min="0" max="100" step="0.01" value={newProspect.porcentaje}
+                                <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Monto Inversión (calculado)</div>
+                                <input type="text" value={newProspect.montoInversion ? `$${Number(newProspect.montoInversion).toLocaleString()}` : ''}
                                   readOnly
                                   style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'rgba(26,143,168,0.06)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                               </div>
@@ -4355,7 +4395,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                       </div>
                     ) : (
                       <div style={{background:'var(--gw-card)', border:'1px solid var(--gw-border)', borderRadius:12, overflowX:'auto'}}>
-                        <table style={{width:'100%', borderCollapse:'collapse', minWidth: isFondeo ? 1050 : undefined}}>
+                        <table style={{width:'100%', borderCollapse:'collapse', minWidth: isFondeo ? 950 : undefined}}>
                           <thead>
                             <tr style={{background:'var(--gw-page-bg)', borderBottom:'2px solid var(--gw-border)'}}>
                               <th style={{padding:'10px 12px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Inversionista</th>
@@ -4372,7 +4412,6 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Acción</th>
                               </>}
                               {isFondeo && <>
-                                <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Broker</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Monto USD</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Fecha GFD</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>GFD Proyectado</th>
@@ -4469,15 +4508,15 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 {isE5 && <>
                                   <td style={{padding:'10px 12px', textAlign:'center'}}>
                                     <StatusSelect value={part.ddEstado} field="ddEstado" idx={idx}
-                                      options={[{value:'pendiente',label:'Pendiente'},{value:'enviado',label:'Enviado'},{value:'firmado',label:'Firmado'}]} />
+                                      options={getDocStatusChoices().dd || [{value:'enviado',label:'Enviado'},{value:'firmado',label:'Firmado'}]} />
                                   </td>
                                   <td style={{padding:'10px 12px', textAlign:'center'}}>
                                     <StatusSelect value={part.tsEstado} field="tsEstado" idx={idx}
-                                      options={[{value:'pendiente',label:'Pendiente'},{value:'enviado',label:'Enviado'},{value:'firmado',label:'Firmado'}]} />
+                                      options={getDocStatusChoices().ts || [{value:'enviado',label:'Enviado'},{value:'firmado',label:'Firmado'}]} />
                                   </td>
                                   <td style={{padding:'10px 12px', textAlign:'center'}}>
                                     <StatusSelect value={part.saEstado || part.ppmEstado} field="saEstado" idx={idx}
-                                      options={[{value:'pendiente',label:'Pendiente'},{value:'enviado',label:'Enviado'},{value:'firmado',label:'Firmado'}]} />
+                                      options={getDocStatusChoices().sa || [{value:'enviado',label:'Enviado'},{value:'firmado',label:'Firmado'}]} />
                                   </td>
                                   {/* Envío SA + Envío TS */}
                                   <td style={{padding:'10px 12px', textAlign:'center'}}>
@@ -4548,10 +4587,6 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
                                 {/* ── Fondeo columns ── */}
                                 {isFondeo && <>
-                                  {/* Broker */}
-                                  <td style={{padding:'10px 12px', textAlign:'center', fontSize:12, color:'var(--gw-body)'}}>
-                                    {(() => { const inv = allInversionistas.find(i => i.id === part.invId); return inv?.fields?.Broker || '—'; })()}
-                                  </td>
                                   {/* Monto USD */}
                                   <td style={{padding:'10px 12px', textAlign:'center', fontSize:13, fontWeight:600, color:'var(--gw-heading)'}}>
                                     {part.montoInversion ? `$${Number(part.montoInversion).toLocaleString()}` : '—'}
@@ -5237,6 +5272,7 @@ function ActivosPage({ siteId }) {
     CriterioTenant:"Pendiente",
     CriterioTesisdeinversi_x00f3_n:"Pendiente",
     Fechadeidentificaci_x00f3_n:"",
+    FechaCierreEstimado:"",
     BrokerReferente:"",
     Observacionesdeevaluaci_x00f3_n:""
   });
@@ -5259,6 +5295,7 @@ function ActivosPage({ siteId }) {
       CriterioTenant:"Pendiente",
       CriterioTesisdeinversi_x00f3_n:"Pendiente",
       Fechadeidentificaci_x00f3_n:"",
+      FechaCierreEstimado:"",
       BrokerReferente:"",
       Observacionesdeevaluaci_x00f3_n:""
     });
@@ -5400,6 +5437,7 @@ function ActivosPage({ siteId }) {
       CriterioTenant: choiceVal(f.CriterioTenant, "Pendiente"),
       CriterioTesisdeinversi_x00f3_n: choiceVal(f.CriterioTesisdeinversi_x00f3_n, "Pendiente"),
       Fechadeidentificaci_x00f3_n: f.Fechadeidentificaci_x00f3_n ? f.Fechadeidentificaci_x00f3_n.split('T')[0] : "",
+      FechaCierreEstimado: f.FechaCierreEstimado ? f.FechaCierreEstimado.split('T')[0] : "",
       BrokerReferente: choiceVal(f.BrokerReferente, ""),
       Observacionesdeevaluaci_x00f3_n: stripHtml(f.Observacionesdeevaluaci_x00f3_n) || ""
     });
@@ -5446,10 +5484,26 @@ function ActivosPage({ siteId }) {
   const filtered = items.filter(i => i.fields?.Title?.toLowerCase().includes(search.toLowerCase()));
 
   async function handleSave() {
+    // Validar campos obligatorios antes de guardar
+    const requiredFields = [
+      { key: 'Title', label: 'Nombre del Activo' },
+      { key: 'Tipodeactivo', label: 'Tipo de Activo' },
+      { key: 'Estado', label: 'Estado' },
+      { key: 'Ubicaci_x00f3_n', label: 'Ubicación' },
+      { key: 'Ciudad', label: 'Ciudad' },
+      { key: 'Estado_x002f_Provincia', label: 'Estado/Provincia' },
+      { key: 'PrecioOferta', label: 'Precio Oferta' },
+      { key: 'Fechadeidentificaci_x00f3_n', label: 'Fecha de Identificación' }
+    ];
+    const missing = requiredFields.filter(f => !form[f.key]);
+    if (missing.length > 0) {
+      const names = missing.map(f => f.label).join(', ');
+      alert('⚠ Campos obligatorios faltantes:\n\n' + missing.map(f => '• ' + f.label).join('\n'));
+      return;
+    }
     setSaving(true);
     try {
       // Construir objeto con todos los campos del formulario
-      // Tipodeactivo es multi-select (casillas) → debe enviarse como array
       const allFields = {
         Title: form.Title,
         NombreComercial: form.NombreComercial || undefined,
@@ -5466,6 +5520,7 @@ function ActivosPage({ siteId }) {
         CriterioTenant: form.CriterioTenant,
         CriterioTesisdeinversi_x00f3_n: form.CriterioTesisdeinversi_x00f3_n,
         Fechadeidentificaci_x00f3_n: form.Fechadeidentificaci_x00f3_n,
+        FechaCierreEstimado: form.FechaCierreEstimado || undefined,
         BrokerReferente: form.BrokerReferente,
         Observacionesdeevaluaci_x00f3_n: form.Observacionesdeevaluaci_x00f3_n
       };
@@ -5630,6 +5685,10 @@ function ActivosPage({ siteId }) {
                   <input className="form-input" type="date" value={form.Fechadeidentificaci_x00f3_n} onChange={e => setForm({...form, Fechadeidentificaci_x00f3_n: e.target.value})} />
                 </div>
                 <div className="form-group">
+                  <label className="form-label">Fecha Cierre Estimado</label>
+                  <input className="form-input" type="date" value={form.FechaCierreEstimado} onChange={e => setForm({...form, FechaCierreEstimado: e.target.value})} />
+                </div>
+                <div className="form-group">
                   <label className="form-label">Criterio Location *</label>
                   <select className="form-select" value={form.CriterioLocation} onChange={e => setForm({...form, CriterioLocation: e.target.value})}>
                     {["Pendiente","Aprobado","Rechazado"].map(e => <option key={e}>{e}</option>)}
@@ -5649,12 +5708,7 @@ function ActivosPage({ siteId }) {
                 </div>
                 <div className="form-group full">
                   <label className="form-label">Broker Referente</label>
-                  <select className="form-select" value={form.BrokerReferente} onChange={e => setForm({...form, BrokerReferente: e.target.value})}>
-                    <option value="">Seleccione un broker...</option>
-                    {brokerRefChoices.map(b => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
+                  <input className="form-input" type="text" placeholder="Ingrese broker referente..." value={form.BrokerReferente} onChange={e => setForm({...form, BrokerReferente: e.target.value})} />
                 </div>
                 <div className="form-group full">
                   <label className="form-label">Observaciones de Evaluación</label>
@@ -5781,7 +5835,7 @@ function ActivosPage({ siteId }) {
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => { setShowModal(false); }}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.Title || !form.Tipodeactivo || !form.Estado || !form.Ubicaci_x00f3_n || !form.Ciudad || !form.Estado_x002f_Provincia || !form.PrecioOferta || !form.Fechadeidentificaci_x00f3_n}>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? "💾 Guardando..." : (editingItem ? "✔ Actualizar Activo" : "Crear Activo")}
               </button>
             </div>
