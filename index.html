@@ -1769,6 +1769,87 @@ function ErrorMsg({ msg }) {
   return <div className="error-wrap">⚠️ {msg}</div>;
 }
 
+// ─── Country searchable select ────────────────────────────────────
+const COUNTRIES = [
+  "Afganistán","Albania","Alemania","Andorra","Angola","Antigua y Barbuda","Arabia Saudita","Argelia","Argentina","Armenia",
+  "Australia","Austria","Azerbaiyán","Bahamas","Bangladés","Barbados","Baréin","Bélgica","Belice","Benín",
+  "Bielorrusia","Birmania","Bolivia","Bosnia y Herzegovina","Botsuana","Brasil","Brunéi","Bulgaria","Burkina Faso","Burundi",
+  "Bután","Cabo Verde","Camboya","Camerún","Canadá","Catar","Chad","Chile","China","Chipre",
+  "Colombia","Comoras","Corea del Norte","Corea del Sur","Costa de Marfil","Costa Rica","Croacia","Cuba","Dinamarca","Dominica",
+  "Ecuador","Egipto","El Salvador","Emiratos Árabes Unidos","Eritrea","Eslovaquia","Eslovenia","España","Estonia",
+  "Etiopía","Filipinas","Finlandia","Fiyi","Francia","Gabón","Gambia","Georgia","Ghana","Granada",
+  "Grecia","Guatemala","Guinea","Guinea Ecuatorial","Guinea-Bisáu","Guyana","Haití","Honduras","Hungría","India",
+  "Indonesia","Irak","Irán","Irlanda","Islandia","Islas Marshall","Islas Salomón","Israel","Italia","Jamaica",
+  "Japón","Jordania","Kazajistán","Kenia","Kirguistán","Kiribati","Kuwait","Laos","Lesoto","Letonia",
+  "Líbano","Liberia","Libia","Liechtenstein","Lituania","Luxemburgo","Madagascar","Malasia","Malaui","Maldivas",
+  "Malí","Malta","Marruecos","Mauricio","Mauritania","México","Micronesia","Moldavia","Mónaco","Mongolia",
+  "Montenegro","Mozambique","Namibia","Nauru","Nepal","Nicaragua","Níger","Nigeria","Noruega","Nueva Zelanda",
+  "Omán","Países Bajos","Pakistán","Palaos","Panamá","Papúa Nueva Guinea","Paraguay","Perú","Polonia","Portugal",
+  "Puerto Rico","Reino Unido","República Centroafricana","República Checa","República del Congo","República Democrática del Congo","República Dominicana",
+  "Ruanda","Rumanía","Rusia","Samoa","San Cristóbal y Nieves","San Marino","San Vicente y las Granadinas","Santa Lucía",
+  "Santo Tomé y Príncipe","Senegal","Serbia","Seychelles","Sierra Leona","Singapur","Siria","Somalia","Sri Lanka",
+  "Suazilandia","Sudáfrica","Sudán","Sudán del Sur","Suecia","Suiza","Surinam","Tailandia","Tanzania","Tayikistán",
+  "Timor Oriental","Togo","Tonga","Trinidad y Tobago","Túnez","Turkmenistán","Turquía","Tuvalu","Ucrania","Uganda",
+  "Uruguay","USA","Uzbekistán","Vanuatu","Vaticano","Venezuela","Vietnam","Yemen","Yibuti","Zambia","Zimbabue"
+];
+
+function CountrySelect({ value, onChange, style }) {
+  const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+  const ref = React.useRef(null);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const filtered = search
+    ? COUNTRIES.filter(c => c.toLowerCase().includes(search.toLowerCase()))
+    : COUNTRIES;
+
+  return (
+    <div ref={ref} style={{position:'relative', ...style}}>
+      <div onClick={() => setOpen(!open)}
+        style={{width:'100%', padding:'8px 12px', borderRadius:8, border:'1px solid var(--gw-border)',
+          background:'var(--gw-page-bg)', color: value ? 'var(--gw-body)' : 'var(--gw-muted)',
+          fontSize:13, boxSizing:'border-box', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <span>{value || 'Seleccionar país...'}</span>
+        <span style={{fontSize:10, color:'var(--gw-muted)'}}>{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div style={{position:'absolute', top:'100%', left:0, right:0, zIndex:999,
+          background:'var(--gw-card-bg)', border:'1px solid var(--gw-border)', borderRadius:8,
+          boxShadow:'0 8px 24px rgba(0,0,0,0.15)', maxHeight:250, overflow:'hidden', marginTop:4}}>
+          <div style={{padding:'8px 8px 4px'}}>
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="🔍 Buscar país..."
+              style={{width:'100%', padding:'6px 10px', borderRadius:6, border:'1px solid var(--gw-border)',
+                background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:12, boxSizing:'border-box', outline:'none'}} />
+          </div>
+          <div style={{maxHeight:200, overflowY:'auto'}}>
+            {filtered.length === 0 && (
+              <div style={{padding:'10px 12px', fontSize:12, color:'var(--gw-muted)', textAlign:'center'}}>Sin resultados</div>
+            )}
+            {filtered.map(c => (
+              <div key={c} onClick={() => { onChange(c); setOpen(false); setSearch(''); }}
+                style={{padding:'7px 12px', fontSize:12, cursor:'pointer', color:'var(--gw-body)',
+                  background: c === value ? 'rgba(26,143,168,0.1)' : 'transparent',
+                  fontWeight: c === value ? 700 : 400,
+                  transition:'background 0.15s'}}
+                onMouseEnter={e => e.currentTarget.style.background='rgba(26,143,168,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = c === value ? 'rgba(26,143,168,0.1)' : 'transparent'}>
+                {c}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LoginScreen({ onLogin, loading }) {
   return (
     <div className="login-screen">
@@ -3258,6 +3339,12 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
   async function addParticipacion() {
     if (!newPart.invId || !newPart.montoInversion) return;
+    // Check if investor is already linked to this project
+    const alreadyLinked = participaciones.find(p => String(p.invId) === String(newPart.invId));
+    if (alreadyLinked) {
+      showToast(`⚠️ ${alreadyLinked.nombre} ya está vinculado a este proyecto`, 'error');
+      return;
+    }
     setSavingPart(true);
     const inv = allInversionistas.find(i => i.id === newPart.invId);
     const entry = {
@@ -4293,8 +4380,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                               </div>
                               <div>
                                 <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>País</div>
-                                <input value={newProspect.field_7} onChange={e => setNewProspect(p=>({...p, field_7:e.target.value}))} placeholder="País"
-                                  style={{width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
+                                <CountrySelect value={newProspect.field_7||''} onChange={v => setNewProspect(p=>({...p, field_7:v}))} />
                               </div>
                               <div>
                                 <div style={{fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6}}>Dirección</div>
@@ -4674,8 +4760,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                           try {
                                             await postGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items`, {
                                               fields: {
-                                                Title: `Solicitar Pago — ${part.nombre} — ${viewingProject.fields?.Title || ''}`,
-                                                TipoHito: 'Solicitar Pago',
+                                                Title: `Solicitar GFD — ${part.nombre} — ${viewingProject.fields?.Title || ''}`,
+                                                TipoHito: 'Solicitar GFD',
                                                 FechadeSolicitud: new Date().toISOString(),
                                                 'EstadoAprobaci_x00f3_n': 'Pendiente',
                                                 ProyectoLookupId: String(viewingProject.id),
@@ -4687,7 +4773,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                                 InversionesItemId: String(part._spId || ''),
                                               }
                                             });
-                                            showToast(`💸 Solicitud de pago creada para ${part.nombre}`);
+                                            showToast(`💸 Solicitud de GFD creada para ${part.nombre}`);
                                           } catch(err) {
                                             showToast('❌ Error: ' + err.message, 'error');
                                           }
@@ -4699,7 +4785,38 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                         }}
                                         onMouseEnter={e => { e.currentTarget.style.background='rgba(200,150,12,0.2)'; }}
                                         onMouseLeave={e => { e.currentTarget.style.background='rgba(200,150,12,0.1)'; }}
-                                      >💸 Solicitar Pago</button>
+                                      >💸 Solicitar GFD</button>
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            await postGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items`, {
+                                              fields: {
+                                                Title: `Solicitar Final Deposit — ${part.nombre} — ${viewingProject.fields?.Title || ''}`,
+                                                TipoHito: 'Solicitar Final Deposit',
+                                                FechadeSolicitud: new Date().toISOString(),
+                                                'EstadoAprobaci_x00f3_n': 'Pendiente',
+                                                ProyectoLookupId: String(viewingProject.id),
+                                                Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
+                                                MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
+                                                Participaci_x00f3_n: Number(part.porcentaje) || 0,
+                                                MontoGFD: Number(part.gfd) || 0,
+                                                MontoFinalDeposit: Number(part.finalDeposit) || 0,
+                                                InversionesItemId: String(part._spId || ''),
+                                              }
+                                            });
+                                            showToast(`💸 Solicitud de Final Deposit creada para ${part.nombre}`);
+                                          } catch(err) {
+                                            showToast('❌ Error: ' + err.message, 'error');
+                                          }
+                                        }}
+                                        style={{
+                                          padding:'4px 10px', background:'rgba(26,143,168,0.1)', border:'1px solid rgba(26,143,168,0.3)',
+                                          borderRadius:8, fontSize:10, cursor:'pointer', color:'var(--gw-cyan)', fontWeight:600, transition:'all 0.2s',
+                                          display:'inline-flex', alignItems:'center', gap:3, whiteSpace:'nowrap'
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.background='rgba(26,143,168,0.2)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background='rgba(26,143,168,0.1)'; }}
+                                      >💸 Solicitar Final Deposit</button>
                                       <button
                                         onClick={async () => {
                                           try {
@@ -4952,11 +5069,9 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                               style={{padding:'3px 8px', background:'rgba(46,204,138,0.1)', border:'1px solid rgba(46,204,138,0.3)', borderRadius:6, fontSize:10, cursor:'pointer', color:'var(--gw-success)', fontWeight:600}}
                                               title="Confirmar y notificar al inversionista">✅ Confirmar</button>
                                           )}
-                                          {!abono.confirmado && (
-                                            <button onClick={() => eliminarAbono(abono.id)}
-                                              style={{padding:'3px 8px', background:'rgba(231,76,60,0.08)', border:'1px solid rgba(231,76,60,0.2)', borderRadius:6, fontSize:10, cursor:'pointer', color:'#e74c3c', fontWeight:600}}
-                                              title="Eliminar abono">✕</button>
-                                          )}
+                                          <button onClick={() => { if (confirm('¿Estás seguro de eliminar este abono?' + (abono.confirmado ? ' Este abono ya fue confirmado.' : ''))) eliminarAbono(abono.id); }}
+                                            style={{padding:'3px 8px', background:'rgba(231,76,60,0.08)', border:'1px solid rgba(231,76,60,0.2)', borderRadius:6, fontSize:10, cursor:'pointer', color:'#e74c3c', fontWeight:600}}
+                                            title="Eliminar abono">🗑️</button>
                                         </div>
                                       </td>
                                     </tr>
@@ -6022,6 +6137,54 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
         showToast('⚠️ Guardado parcial: algunos campos adicionales no existen en SharePoint', 'error');
       }
 
+      // Update Clave Inversión (Title) in all related Inversiones records if name changed
+      const oldName = viewingInv.fields?.Title || '';
+      const newName = invForm.Title || '';
+      if (newName && newName !== oldName) {
+        try {
+          // Find the Inversiones site (could be different from Inversionistas site)
+          const invSiteId = siteId; // Same SharePoint site
+          const invRes = await callGraph(`/sites/${invSiteId}/lists/${LISTS.inversiones}/items?$expand=fields&$filter=fields/InversionistaLookupId eq '${viewingInv.id}'&$top=100`);
+          const relatedItems = invRes.value || [];
+          console.log(`[GWealth] Updating Clave Inversión for ${relatedItems.length} records: "${oldName}" → "${newName}"`);
+          for (const item of relatedItems) {
+            const oldTitle = item.fields?.Title || '';
+            // Replace old name with new name in Clave Inversión (format: "Name — Project")
+            const newTitle = oldTitle.includes(' — ')
+              ? `${newName} — ${oldTitle.split(' — ').slice(1).join(' — ')}`
+              : `${newName}${oldTitle.includes('-') ? oldTitle.substring(oldTitle.indexOf('-')) : ''}`;
+            try {
+              await patchGraph(`/sites/${invSiteId}/lists/${LISTS.inversiones}/items/${item.id}`, {
+                fields: { Title: newTitle }
+              });
+            } catch(e3) { console.warn('[GWealth] Could not update Clave Inversión for item', item.id, e3.message); }
+          }
+        } catch(e2) {
+          console.warn('[GWealth] Could not update Clave Inversión in Inversiones:', e2.message);
+          // Try without filter (SP filter on lookup fields can fail)
+          try {
+            const allInvItems = await callGraph(`/sites/${siteId}/lists/${LISTS.inversiones}/items?$expand=fields&$top=500`);
+            const matching = (allInvItems.value || []).filter(it =>
+              String(it.fields?.InversionistaLookupId) === String(viewingInv.id) ||
+              (it.fields?.Title || '').startsWith(oldName + ' — ') ||
+              (it.fields?.Title || '').startsWith(oldName + '-')
+            );
+            console.log(`[GWealth] Fallback: updating ${matching.length} Clave Inversión records`);
+            for (const item of matching) {
+              const oldTitle = item.fields?.Title || '';
+              const newTitle = oldTitle.includes(' — ')
+                ? `${newName} — ${oldTitle.split(' — ').slice(1).join(' — ')}`
+                : `${newName}${oldTitle.includes('-') ? oldTitle.substring(oldTitle.indexOf('-')) : ''}`;
+              try {
+                await patchGraph(`/sites/${siteId}/lists/${LISTS.inversiones}/items/${item.id}`, {
+                  fields: { Title: newTitle }
+                });
+              } catch(e4) { console.warn('[GWealth] Fallback update failed for item', item.id); }
+            }
+          } catch(e5) { console.warn('[GWealth] Fallback Clave Inversión update failed:', e5.message); }
+        }
+      }
+
       const res = await callGraph(`/sites/${siteId}/lists/${LISTS.inversionistas}/items?$expand=fields&$top=500`);
       const updated = res.value || [];
       setItems(updated);
@@ -6317,7 +6480,6 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                     { key:'field_4', label:'Dirección / Calle' },
                     { key:'field_5', label:'Ciudad' },
                     { key:'field_6', label:'Estado / Provincia' },
-                    { key:'field_7', label:'País' },
                     { key:'field_8', label:'Código Postal / ZIP' },
                   ].map(({key,label}) => (
                     <div key={key}>
@@ -6327,6 +6489,10 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
                           background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:13, boxSizing:'border-box'}} />
                     </div>
                   ))}
+                  <div>
+                    <div style={{fontSize:11, color:'var(--gw-muted)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>País</div>
+                    <CountrySelect value={invForm.field_7||''} onChange={v => setInvForm(p=>({...p, field_7:v}))} />
+                  </div>
                 </div>
 
                 {/* Bancario */}
