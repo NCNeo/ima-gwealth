@@ -1482,13 +1482,29 @@ function getProjectStageIndex(etapa) {
   return idx;
 }
 
+// E5 Purchase document IDs (global for calculateMilestoneProgress)
+const _E5_ALL_DOCS_GLOBAL = [
+  'cl_appraisal','cl_escrow','cl_snda','cl_ctc','cl_legal_opinion','cl_term_sheet','cl_coi',
+  'cl_financials','cl_insurance','cl_environmental','cl_survey_title','cl_zoning',
+  'cl_deeds','cl_leases','cl_estoppel','cl_closing_stmt','cl_firpta','cl_funds_close','cl_wire'
+];
+
 function calculateMilestoneProgress(milestonesJson) {
   if (!milestonesJson) return { completed: 0, total: 0, percentage: 0 };
   const blob = typeof milestonesJson === 'string' ? JSON.parse(milestonesJson) : milestonesJson;
-  const allMilestones = PROJECT_SECTIONS.flatMap(s => s.milestones);
-  const required = allMilestones.filter(m => m.required);
-  const completed = required.filter(m => blob[m.id] === true).length;
-  const total = required.length;
+  // Count E5 docs instead of single purchase_completo for weighted progress
+  let completed = 0;
+  let total = 0;
+  PROJECT_SECTIONS.forEach(s => {
+    if (s.id === 'e5') {
+      total += _E5_ALL_DOCS_GLOBAL.length;
+      completed += _E5_ALL_DOCS_GLOBAL.filter(id => blob[id] === true).length;
+    } else {
+      const req = s.milestones.filter(m => m.required);
+      total += req.length;
+      completed += req.filter(m => blob[m.id] === true).length;
+    }
+  });
   return {
     completed,
     total,
@@ -2881,14 +2897,34 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           const res = await callGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}?$expand=fields`);
           const aFields = res.fields || null;
           setActivoData(aFields);
-          // Sync FechaCierreEstimado from activo → proyecto if activo has it and project doesn't
-          if (aFields?.FechaCierreEstimado && !item.fields?.FechaCierreEstimado) {
+          // Bidirectional sync FechaCierreEstimado between activo and proyecto
+          const activoFecha = aFields?.FechaCierreEstimado ? aFields.FechaCierreEstimado.split('T')[0] : '';
+          const projFecha = item.fields?.FechaCierreEstimado ? item.fields.FechaCierreEstimado.split('T')[0] : '';
+          if (activoFecha && !projFecha) {
+            // Activo has date, project doesn't → sync to project
             try {
               await patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${item.id}`, {
                 fields: { FechaCierreEstimado: aFields.FechaCierreEstimado }
               });
               setViewingProject(p => ({ ...p, fields: { ...p.fields, FechaCierreEstimado: aFields.FechaCierreEstimado } }));
-              console.log('[GWealth] FechaCierreEstimado synced from activo to project:', aFields.FechaCierreEstimado);
+              console.log('[GWealth] FechaCierreEstimado synced activo → proyecto');
+            } catch(e2) { console.warn('[GWealth] Could not sync FechaCierreEstimado to project:', e2.message); }
+          } else if (projFecha && !activoFecha && activoId) {
+            // Project has date, activo doesn't → sync to activo
+            try {
+              await patchGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}`, {
+                fields: { FechaCierreEstimado: item.fields.FechaCierreEstimado }
+              });
+              console.log('[GWealth] FechaCierreEstimado synced proyecto → activo');
+            } catch(e2) { console.warn('[GWealth] Could not sync FechaCierreEstimado to activo:', e2.message); }
+          } else if (activoFecha && projFecha && activoFecha !== projFecha) {
+            // Both have dates but differ → activo takes precedence, sync to project
+            try {
+              await patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${item.id}`, {
+                fields: { FechaCierreEstimado: aFields.FechaCierreEstimado }
+              });
+              setViewingProject(p => ({ ...p, fields: { ...p.fields, FechaCierreEstimado: aFields.FechaCierreEstimado } }));
+              console.log('[GWealth] FechaCierreEstimado conflict resolved (activo wins):', activoFecha);
             } catch(e2) { console.warn('[GWealth] Could not sync FechaCierreEstimado:', e2.message); }
           }
         }
@@ -3061,6 +3097,19 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           RoutingProyecto: form.RoutingProyecto || null
         }
       });
+      // Sync FechaCierreEstimado proyecto → activo
+      if (form.FechaCierreEstimado) {
+        try {
+          const activoId = await findActivoIdForProject(viewingProject);
+          if (activoId) {
+            await patchGraph(`/sites/${siteId}/lists/${LISTS.activos}/items/${activoId}`, {
+              fields: { FechaCierreEstimado: form.FechaCierreEstimado }
+            });
+            console.log('[GWealth] FechaCierreEstimado synced proyecto → activo');
+          }
+        } catch(syncErr) { console.warn('[GWealth] Could not sync FechaCierreEstimado to activo:', syncErr.message); }
+      }
+
       const freshItems = await refreshItems();
       const updated = freshItems.find(i => i.id === viewingProject.id);
       if (updated) setViewingProject(updated);
@@ -3145,7 +3194,10 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
   // ── AUTO-DETECT ETAPA when hitos/milestones change + SYNC ACTIVO ──
   useEffect(() => {
-    if (!viewingProject || projectHitos.length === 0) return;
+    if (!viewingProject) return;
+    // Run detection based on milestones alone — don't require hitos
+    const hasMilestones = Object.keys(milestones).some(k => !k.startsWith('notes_') && milestones[k] === true);
+    if (projectHitos.length === 0 && !hasMilestones) return;
     const newEtapa = detectCurrentEtapa(milestones);
     const currentEtapa = viewingProject.fields?.EtapaActual;
 
@@ -3181,6 +3233,17 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     }
     syncEtapa();
   }, [projectHitos, milestones]);
+
+  // Auto-check purchase_completo when E5 document checkboxes change
+  useEffect(() => {
+    if (!viewingProject) return;
+    const allE5Done = E5_ALL_DOCS.every(id => milestones[id]);
+    if (allE5Done && !milestones.purchase_completo) {
+      setMilestones(prev => ({ ...prev, purchase_completo: true }));
+    } else if (!allE5Done && milestones.purchase_completo) {
+      setMilestones(prev => ({ ...prev, purchase_completo: false }));
+    }
+  }, [milestones, viewingProject]);
 
   async function saveMilestonesAndNotes() {
     if (!viewingProject) return;
@@ -3245,17 +3308,47 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
   const filtered = items.filter(i => i.fields?.Title?.toLowerCase().includes(search.toLowerCase()));
 
+  // E5 Purchase document lists (used for weighted progress)
+  const E5_FINANCING_DOCS = ['cl_appraisal','cl_escrow','cl_snda','cl_ctc','cl_legal_opinion','cl_term_sheet','cl_coi'];
+  const E5_DD_DOCS = ['cl_financials','cl_insurance','cl_environmental','cl_survey_title','cl_zoning'];
+  const E5_LEGAL_DOCS = ['cl_deeds','cl_leases','cl_estoppel','cl_closing_stmt','cl_firpta','cl_funds_close','cl_wire'];
+  const E5_ALL_DOCS = [...E5_FINANCING_DOCS, ...E5_DD_DOCS, ...E5_LEGAL_DOCS];
+
+  function getE5SubProgress(docIds) {
+    const total = docIds.length;
+    const done = docIds.filter(id => milestones[id]).length;
+    return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
+  }
+
   function getSectionProgress(section) {
+    // For E5, use weighted progress from all purchase documents instead of single checkbox
+    if (section.id === 'e5') {
+      const total = E5_ALL_DOCS.length;
+      const done = E5_ALL_DOCS.filter(id => milestones[id]).length;
+      return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
+    }
+    // For Fondeo, use actual money received percentage
+    if (section.id === 'fondeo') {
+      const totalExpected = participaciones.reduce((s, p) => s + (Number(p.montoInversion) || 0), 0);
+      const totalReceived = participaciones.reduce((s, p) => s + (Number(p.gfdRecibido) || 0) + (Number(p.fdRecibido) || 0), 0);
+      const pct = totalExpected > 0 ? Math.min(100, Math.round((totalReceived / totalExpected) * 100)) : 0;
+      return { done: totalReceived, total: totalExpected, pct, isMoney: true };
+    }
     const total = section.milestones.length;
     const done = section.milestones.filter(m => milestones[m.id]).length;
     return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
   }
 
   function getOverallProgress() {
-    const allMils = PROJECT_SECTIONS.flatMap(s => s.milestones);
-    const total = allMils.length;
-    const done = allMils.filter(m => milestones[m.id]).length;
-    return total === 0 ? 0 : Math.round((done / total) * 100);
+    // Weighted overall progress:
+    // E2, E3, E7 = milestone-based; E4 = milestone-based; E5 = document-based; E6 = money-based
+    // Each section contributes equally (1/6 of total)
+    const sectionCount = PROJECT_SECTIONS.length;
+    let totalPct = 0;
+    PROJECT_SECTIONS.forEach(s => {
+      totalPct += getSectionProgress(s).pct;
+    });
+    return sectionCount === 0 ? 0 : Math.round(totalPct / sectionCount);
   }
 
   if (loading) return React.createElement(Loading);
@@ -3328,6 +3421,10 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           if (!allE4Done && prev.inv_completo) next.inv_completo = false;
           if (allFondeoDone && !prev.fondeo_completo) next.fondeo_completo = true;
           if (!allFondeoDone && prev.fondeo_completo) next.fondeo_completo = false;
+          // Auto-check purchase_completo based on E5 document completion
+          const allE5Done = E5_ALL_DOCS.every(id => next[id]);
+          if (allE5Done && !next.purchase_completo) next.purchase_completo = true;
+          if (!allE5Done && next.purchase_completo) next.purchase_completo = false;
           return next;
         });
       }
@@ -3969,7 +4066,9 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                     const pr = getSectionProgress(section);
                     return (
                       <div style={{fontSize:12, color:'var(--gw-muted)', marginTop:4}}>
-                        {pr.done} de {pr.total} hitos completados
+                        {pr.isMoney
+                          ? `$${Number(pr.done).toLocaleString()} de $${Number(pr.total).toLocaleString()} recibidos`
+                          : `${pr.done} de ${pr.total} hitos completados`}
                         {pr.pct === 100 && <span style={{color:'var(--gw-success)', marginLeft:8, fontWeight:700}}>✅ Sección completa</span>}
                       </div>
                     );
@@ -3994,7 +4093,9 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                       }} />
                     </div>
                     <div style={{fontSize:11, color:'var(--gw-muted)', marginTop:6}}>
-                      {pr.done}/{pr.total} hitos • Haz clic en cada hito para marcarlo como completado
+                      {pr.isMoney
+                        ? `$${Number(pr.done).toLocaleString()} / $${Number(pr.total).toLocaleString()} • Fondeo basado en abonos recibidos`
+                        : `${pr.done}/${pr.total} hitos • Haz clic en cada hito para marcarlo como completado`}
                     </div>
                   </div>
                 );
@@ -4136,15 +4237,30 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
               {/* ── PURCHASE SUB-TABS (E5) ── */}
               {section.id === 'e5' && (
                 <div style={{display:'flex', gap:0, marginBottom:18, marginTop:12, borderBottom:'2px solid var(--gw-border)'}}>
-                  {[{id:'financing', label:'💰 Financing'}, {id:'due_diligence', label:'🔍 Due Diligence'}, {id:'legal_asset', label:'⚖️ Legal Asset'}].map(st => (
-                    <button key={st.id} onClick={() => setPurchaseSubTab(st.id)}
-                      style={{
-                        padding:'10px 22px', background:'none', border:'none',
-                        borderBottom: purchaseSubTab===st.id ? '2px solid var(--gw-cyan)' : '2px solid transparent',
-                        color: purchaseSubTab===st.id ? 'var(--gw-cyan)' : 'var(--gw-muted)',
-                        fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:'-2px', transition:'all 0.2s'
-                      }}>{st.label}</button>
-                  ))}
+                  {[
+                    {id:'financing', label:'💰 Financing', docs: E5_FINANCING_DOCS, color:'var(--gw-cyan)'},
+                    {id:'due_diligence', label:'🔍 Due Diligence', docs: E5_DD_DOCS, color:'#C8960C'},
+                    {id:'legal_asset', label:'⚖️ Legal Asset', docs: E5_LEGAL_DOCS, color:'#6B2DA4'}
+                  ].map(st => {
+                    const subPr = getE5SubProgress(st.docs);
+                    return (
+                      <button key={st.id} onClick={() => setPurchaseSubTab(st.id)}
+                        style={{
+                          padding:'10px 22px', background:'none', border:'none',
+                          borderBottom: purchaseSubTab===st.id ? `2px solid ${st.color}` : '2px solid transparent',
+                          color: purchaseSubTab===st.id ? st.color : 'var(--gw-muted)',
+                          fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:'-2px', transition:'all 0.2s',
+                          display:'flex', alignItems:'center', gap:8
+                        }}>
+                        {st.label}
+                        <span style={{
+                          padding:'2px 8px', borderRadius:99, fontSize:10, fontWeight:700,
+                          background: subPr.pct===100 ? 'rgba(46,204,138,0.15)' : `${st.color}20`,
+                          color: subPr.pct===100 ? 'var(--gw-success)' : st.color
+                        }}>{subPr.pct}%</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -5203,6 +5319,63 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                           </tfoot>
                         </table>
                       </div>
+                      {/* Sub-section progress bar */}
+                      {(() => {
+                        const subDone = activeDocs.filter(d => milestones[d.id]).length;
+                        const subTotal = activeDocs.length;
+                        const subPct = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0;
+                        const barColor = subPct === 100 ? 'var(--gw-success)' : purchaseSubTab === 'financing' ? 'var(--gw-cyan)' : purchaseSubTab === 'due_diligence' ? '#C8960C' : '#6B2DA4';
+                        return (
+                          <div style={{marginTop:12, background:'var(--gw-card)', border:'1px solid var(--gw-border)', borderRadius:10, padding:'12px 16px'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', marginBottom:6}}>
+                              <span style={{fontSize:11, fontWeight:600, color:'var(--gw-heading)'}}>Progreso {sectionTitle.replace(/^[^\s]+\s/, '')}</span>
+                              <span style={{fontSize:11, fontWeight:700, color: barColor}}>{subPct}%</span>
+                            </div>
+                            <div style={{height:8, background:'var(--gw-border)', borderRadius:4, overflow:'hidden'}}>
+                              <div style={{width:`${subPct}%`, height:'100%', borderRadius:4, background:barColor, transition:'width 0.5s ease'}} />
+                            </div>
+                            <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:4}}>{subDone}/{subTotal} documentos completados</div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* ── Combined E5 progress breakdown ── */}
+                    <div style={{marginTop:20, background:'var(--gw-card)', border:'1px solid var(--gw-border)', borderRadius:12, padding:'16px 20px'}}>
+                      <div style={{fontSize:13, fontWeight:700, color:'var(--gw-heading)', marginBottom:14}}>📊 Progreso General — Purchase</div>
+                      {[
+                        { label:'💰 Financing', ids: E5_FINANCING_DOCS, color:'var(--gw-cyan)' },
+                        { label:'🔍 Due Diligence', ids: E5_DD_DOCS, color:'#C8960C' },
+                        { label:'⚖️ Legal Asset', ids: E5_LEGAL_DOCS, color:'#6B2DA4' }
+                      ].map(sub => {
+                        const pr = getE5SubProgress(sub.ids);
+                        return (
+                          <div key={sub.label} style={{marginBottom:10}}>
+                            <div style={{display:'flex', justifyContent:'space-between', marginBottom:4}}>
+                              <span style={{fontSize:11, fontWeight:600, color:'var(--gw-body)'}}>{sub.label}</span>
+                              <span style={{fontSize:11, fontWeight:700, color: pr.pct===100 ? 'var(--gw-success)' : sub.color}}>{pr.done}/{pr.total} — {pr.pct}%</span>
+                            </div>
+                            <div style={{height:6, background:'var(--gw-border)', borderRadius:3, overflow:'hidden'}}>
+                              <div style={{width:`${pr.pct}%`, height:'100%', borderRadius:3, background: pr.pct===100 ? 'var(--gw-success)' : sub.color, transition:'width 0.5s ease'}} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {/* Weighted total */}
+                      {(() => {
+                        const overall = getSectionProgress({id:'e5'});
+                        return (
+                          <div style={{marginTop:12, paddingTop:12, borderTop:'1px solid var(--gw-border)'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', marginBottom:4}}>
+                              <span style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)'}}>🏛️ Total Purchase</span>
+                              <span style={{fontSize:12, fontWeight:700, color: overall.pct===100 ? 'var(--gw-success)' : '#6B2DA4'}}>{overall.done}/{overall.total} — {overall.pct}%</span>
+                            </div>
+                            <div style={{height:8, background:'var(--gw-border)', borderRadius:4, overflow:'hidden'}}>
+                              <div style={{width:`${overall.pct}%`, height:'100%', borderRadius:4, background: overall.pct===100 ? 'var(--gw-success)' : '#6B2DA4', transition:'width 0.5s ease'}} />
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                   </div>
@@ -5521,6 +5694,17 @@ function ActivosPage({ siteId }) {
     }
   }
 
+  function handleCloseModal() {
+    // Check if user has entered any data worth warning about
+    const hasData = form.Title || form.NombreComercial || form.Ubicaci_x00f3_n || form.Ciudad
+      || form.PrecioOferta || form.Equity || form.Loan || form.BrokerReferente
+      || form.Observacionesdeevaluaci_x00f3_n || form.Fechadeidentificaci_x00f3_n || form.FechaCierreEstimado;
+    if (hasData) {
+      if (!confirm('⚠️ Tienes información sin guardar.\n\n¿Estás seguro de que deseas salir? Los datos ingresados se perderán.')) return;
+    }
+    setShowModal(false);
+  }
+
   function openNewModal() {
     resetForm();
     setShowModal(true);
@@ -5652,10 +5836,28 @@ function ActivosPage({ siteId }) {
       if (editingItem) {
         const endpoint = `/sites/${siteId}/lists/${LISTS.activos}/items/${editingItem.id}`;
         await patchGraph(endpoint, { fields: dataToSend });
+
+        // Sync FechaCierreEstimado activo → proyecto
+        if (form.FechaCierreEstimado) {
+          try {
+            const projRes = await callGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items?$expand=fields&$top=200`);
+            const activoTitle = (form.Title || editingItem.fields?.Title || '').toLowerCase();
+            const linkedProj = (projRes.value || []).find(p => {
+              const pTitle = (p.fields?.Title || '').toLowerCase();
+              return pTitle.includes(activoTitle) || activoTitle.includes(pTitle);
+            });
+            if (linkedProj) {
+              await patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${linkedProj.id}`, {
+                fields: { FechaCierreEstimado: form.FechaCierreEstimado }
+              });
+              console.log('[GWealth] FechaCierreEstimado synced activo → proyecto:', linkedProj.fields?.Title);
+            }
+          } catch(syncErr) { console.warn('[GWealth] Could not sync FechaCierreEstimado to project:', syncErr.message); }
+        }
       } else {
         await postGraph(`/sites/${siteId}/lists/${LISTS.activos}/items`, { fields: dataToSend });
       }
-      
+
       // Recargar lista
       const res = await callGraph(`/sites/${siteId}/lists/${LISTS.activos}/items?$expand=fields&$top=100`);
       setItems(res.value || []);
@@ -5730,17 +5932,17 @@ function ActivosPage({ siteId }) {
       </div>
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => { setShowModal(false); }}>
+        <div className="modal-overlay" onClick={() => { handleCloseModal(); }}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{maxWidth: '800px'}}>
             <div className="modal-header">
               <div className="modal-title">{editingItem ? 'Editar Activo' : 'Nuevo Activo'}</div>
-              <button className="modal-close" onClick={() => { setShowModal(false); }}>✕</button>
+              <button className="modal-close" onClick={() => { handleCloseModal(); }}>✕</button>
             </div>
             <div className="modal-body">
               <div className="form-grid">
                 <div className="form-group full">
                   <label className="form-label">Nombre del Activo *</label>
-                  <input className="form-input" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} required />
+                  <input className="form-input" placeholder="Ej: Nombre LLC" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} required />
                 </div>
                 <div className="form-group full">
                   <label className="form-label">Nombre Comercial</label>
@@ -5949,7 +6151,7 @@ function ActivosPage({ siteId }) {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => { setShowModal(false); }}>Cancelar</button>
+              <button className="btn btn-ghost" onClick={() => { handleCloseModal(); }}>Cancelar</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? "💾 Guardando..." : (editingItem ? "✔ Actualizar Activo" : "Crear Activo")}
               </button>
