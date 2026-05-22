@@ -995,7 +995,7 @@ const PROJECT_SECTIONS = [
   {
     id: 'e5', label: 'E5 — Purchase', icon: '🏛️', color: '#6B2DA4',
     milestones: [
-      { id: 'purchase_completo', label: 'Purchase documents complete', desc: 'All Financing, Due Diligence and Legal Asset documents completed', required: true, autoCheck: 'e5' },
+      { id: 'purchase_completo', label: 'Purchase documents complete', desc: 'All Financing, Due Diligence and Legal Asset documents completed', required: true, autoCheck: 'e5', hidden: true },
     ]
   },
   {
@@ -1005,11 +1005,9 @@ const PROJECT_SECTIONS = [
     ]
   },
   {
-    id: 'post_closing', label: 'E7 — Post-Closing', icon: '🎉', color: '#2ECC8A',
+    id: 'post_closing', label: 'E7 — Closing', icon: '🎉', color: '#2ECC8A',
     milestones: [
-      { id: 'cierre_ejecutado',      label: 'Cierre ejecutado',                     desc: 'Transacción completada y titulada — proyecto activo', required: true },
-      { id: 'momento_wow',           label: '"Momento wow" enviado',                desc: 'Email personalizado de cierre — Flujo 5 Power Automate', required: true },
-      { id: 'distribuciones',        label: 'Distribuciones programadas',           desc: 'Cronograma de distribuciones trimestrales configurado', required: false },
+      { id: 'e7_closing_completo', label: 'Closing completado', desc: 'Todos los documentos de Asset Acquisition y Post Closing Investors verificados', required: true, autoCheck: 'e7', hidden: true },
     ]
   }
 ];
@@ -1403,7 +1401,7 @@ function getEtapaBadge(etapa) {
     "E4 — Investors": { cls: "badge-blue", label: "E4 INVESTORS" },
     "E5 — Purchase": { cls: "badge-blue", label: "E5 PURCHASE" },
     "E6 — Funding": { cls: "badge-gold", label: "E6 FUNDING" },
-    "E7 — Post-Closing": { cls: "badge-green", label: "E7 POST-CLOSING" },
+    "E7 — Closing": { cls: "badge-green", label: "E7 CLOSING" },
     // Legacy format (for existing data not yet migrated)
     "Etapa 1: Evaluación": { cls: "badge-orange", label: "E1 EVALUACIÓN" },
     "Etapa 2: LOI & BP": { cls: "badge-orange", label: "E2 LOI & BP" },
@@ -1411,12 +1409,12 @@ function getEtapaBadge(etapa) {
     "Etapa 4: Inversionistas": { cls: "badge-blue", label: "E4 INVESTORS" },
     "Etapa 5: Due Diligence": { cls: "badge-blue", label: "E5 PURCHASE" },
     "Etapa 6: Fondeo": { cls: "badge-gold", label: "E6 FUNDING" },
-    "Etapa 7: Post-Closing": { cls: "badge-green", label: "E7 POST-CLOSING" },
+    "Etapa 7: Closing": { cls: "badge-green", label: "E7 CLOSING" },
     "Etapa 2: Negociación": { cls: "badge-orange", label: "E2 LOI & BP" },
     "Etapa 3: Due Diligence": { cls: "badge-orange", label: "E5 PURCHASE" },
     "Etapa 4: Funding": { cls: "badge-blue", label: "E6 FUNDING" },
     "Etapa 5: Cierre": { cls: "badge-gold", label: "E6 FUNDING" },
-    "Etapa 6: Post Closing": { cls: "badge-green", label: "E7 POST-CLOSING" },
+    "Etapa 6: Closing": { cls: "badge-green", label: "E7 CLOSING" },
     // Status badges
     "En evaluación": { cls: "badge-orange", label: "En Evaluación" },
     "En Evaluación": { cls: "badge-orange", label: "En Evaluación" },
@@ -1465,7 +1463,7 @@ function getProjectStageIndex(etapa) {
     "E4 — Investors",
     "E5 — Purchase",
     "E6 — Funding",
-    "E7 — Post-Closing"
+    "E7 — Closing"
   ];
   let idx = stages.indexOf(etapa);
   // Fallback: try legacy format
@@ -1489,16 +1487,29 @@ const _E5_ALL_DOCS_GLOBAL = [
   'cl_deeds','cl_leases','cl_estoppel','cl_closing_stmt','cl_firpta','cl_funds_close','cl_wire'
 ];
 
+const _E7_ALL_DOCS_GLOBAL = [
+  'e7_title_commitment','e7_survey_certified','e7_leases_reconfirmed','e7_tenant_estoppels',
+  'e7_snda_executed','e7_insurance_binder','e7_spe_llc_formed','e7_loan_commitment',
+  'e7_loan_docs_reviewed','e7_closing_settlement','e7_transfer_tax','e7_utility_transfer',
+  'e7_wire_instructions','e7_special_warranty_deed','e7_settlement_closing_stmt',
+  'e7_bill_of_sale','e7_assignment_leases','e7_assignment_contracts',
+  'e7_assignment_permits','e7_firpta_certificate','e7_title_insurance','e7_documentary_stamp_tax',
+  'e7_llc_confirmadas','e7_paquetes_firmados','e7_comunicados_cierre','e7_titulos_emitidos'
+];
+
 function calculateMilestoneProgress(milestonesJson) {
   if (!milestonesJson) return { completed: 0, total: 0, percentage: 0 };
   const blob = typeof milestonesJson === 'string' ? JSON.parse(milestonesJson) : milestonesJson;
-  // Count E5 docs instead of single purchase_completo for weighted progress
+  // Count E5/E7 docs instead of single checkboxes for weighted progress
   let completed = 0;
   let total = 0;
   PROJECT_SECTIONS.forEach(s => {
     if (s.id === 'e5') {
       total += _E5_ALL_DOCS_GLOBAL.length;
       completed += _E5_ALL_DOCS_GLOBAL.filter(id => blob[id] === true).length;
+    } else if (s.id === 'post_closing') {
+      total += _E7_ALL_DOCS_GLOBAL.length;
+      completed += _E7_ALL_DOCS_GLOBAL.filter(id => blob[id] === true).length;
     } else {
       const req = s.milestones.filter(m => m.required);
       total += req.length;
@@ -2581,6 +2592,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   const [fondeoSubTab, setFondeoSubTab] = useState('fondeo');
   const [investorsSubTab, setInvestorsSubTab] = useState('registration'); // 'registration' | 'documentation'
   const [purchaseSubTab, setPurchaseSubTab] = useState('financing'); // 'financing' | 'due_diligence' | 'legal_asset'
+  const [closingSubTab, setClosingSubTab] = useState('asset_acquisition'); // 'asset_acquisition' | 'post_closing_investors'
   const [milestones, setMilestones] = useState({});
   const [notes, setNotes] = useState({});
   const [editingForm, setEditingForm] = useState(false);
@@ -2948,15 +2960,15 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     if (mils.confirmaciones_emitidas) {
       delete mils.confirmaciones_emitidas; // Removed milestone
     }
-    // Auto-complete all milestones for E7 Post-Closing projects (historical data)
+    // Auto-complete all milestones for E7 Closing projects (historical data)
     const etapaActual = item.fields?.EtapaActual || '';
-    if (etapaActual.includes('Post') || etapaActual.includes('7')) {
+    if (etapaActual.includes('Closing') || etapaActual.includes('Post') || etapaActual.includes('7')) {
       const allMilestoneIds = [
         'bp1_elaborado','bp1_aprobado','loi_redactado','loi_firmado','bp2_elaborado','bp2_aprobado',
         'brochure_onepager_realizado','brochure_onepager_aprobado','brochure_full_realizado','brochure_full_aprobado',
         'ein_obtenido','ts_proyecto','llc_constituida','cuenta_bancaria',
-        'inv_completo','purchase_completo','fondeo_completo',
-        'cierre_ejecutado','momento_wow','distribuciones'
+        'inv_completo','purchase_completo','fondeo_completo','e7_closing_completo',
+        ..._E7_ALL_DOCS_GLOBAL
       ];
       let changed = false;
       allMilestoneIds.forEach(id => { if (!mils[id]) { mils[id] = true; changed = true; } });
@@ -3129,7 +3141,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     'e4': 'Etapa 4: Inversionistas',
     'e5': 'Etapa 5: Due Diligence',
     'fondeo': 'Etapa 6: Fondeo',
-    'post_closing': 'Etapa 7: Post-Closing',
+    'post_closing': 'Etapa 7: Closing',
   };
   const etapaOrder = ['e2','e3','e4','e5','fondeo','post_closing'];
 
@@ -3143,8 +3155,15 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     for (const secId of etapaOrder) {
       const section = PROJECT_SECTIONS.find(s => s.id === secId);
       if (!section) continue;
-      const allDone = section.milestones.every(m => milData[m.id]);
-      if (allDone && section.milestones.length > 0) highestCompleted = secId;
+      let allDone = false;
+      if (secId === 'e5') {
+        allDone = E5_ALL_DOCS.every(id => milData[id]);
+      } else if (secId === 'post_closing') {
+        allDone = E7_ALL_DOCS.every(id => milData[id]);
+      } else {
+        allDone = section.milestones.every(m => milData[m.id]) && section.milestones.length > 0;
+      }
+      if (allDone) highestCompleted = secId;
     }
 
     // If BP1 not approved and no sections completed, stay at E1
@@ -3245,6 +3264,17 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     }
   }, [milestones, viewingProject]);
 
+  // Auto-check e7_closing_completo when E7 document checkboxes change
+  useEffect(() => {
+    if (!viewingProject) return;
+    const allE7Done = E7_ALL_DOCS.every(id => milestones[id]);
+    if (allE7Done && !milestones.e7_closing_completo) {
+      setMilestones(prev => ({ ...prev, e7_closing_completo: true }));
+    } else if (!allE7Done && milestones.e7_closing_completo) {
+      setMilestones(prev => ({ ...prev, e7_closing_completo: false }));
+    }
+  }, [milestones, viewingProject]);
+
   async function saveMilestonesAndNotes() {
     if (!viewingProject) return;
     setSavingMilestones(true);
@@ -3314,6 +3344,20 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   const E5_LEGAL_DOCS = ['cl_deeds','cl_leases','cl_estoppel','cl_closing_stmt','cl_firpta','cl_funds_close','cl_wire'];
   const E5_ALL_DOCS = [...E5_FINANCING_DOCS, ...E5_DD_DOCS, ...E5_LEGAL_DOCS];
 
+  // E7 Closing document checklists
+  const E7_ASSET_ACQUISITION = [
+    'e7_title_commitment','e7_survey_certified','e7_leases_reconfirmed','e7_tenant_estoppels',
+    'e7_snda_executed','e7_insurance_binder','e7_spe_llc_formed','e7_loan_commitment',
+    'e7_loan_docs_reviewed','e7_closing_settlement','e7_transfer_tax','e7_utility_transfer',
+    'e7_wire_instructions','e7_special_warranty_deed','e7_settlement_closing_stmt',
+    'e7_bill_of_sale','e7_assignment_leases','e7_assignment_contracts',
+    'e7_assignment_permits','e7_firpta_certificate','e7_title_insurance','e7_documentary_stamp_tax'
+  ];
+  const E7_POST_CLOSING_INVESTORS = [
+    'e7_llc_confirmadas','e7_paquetes_firmados','e7_comunicados_cierre','e7_titulos_emitidos'
+  ];
+  const E7_ALL_DOCS = [...E7_ASSET_ACQUISITION, ...E7_POST_CLOSING_INVESTORS];
+
   function getE5SubProgress(docIds) {
     const total = docIds.length;
     const done = docIds.filter(id => milestones[id]).length;
@@ -3325,6 +3369,12 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     if (section.id === 'e5') {
       const total = E5_ALL_DOCS.length;
       const done = E5_ALL_DOCS.filter(id => milestones[id]).length;
+      return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
+    }
+    // For E7 Closing, use weighted progress from all closing documents
+    if (section.id === 'post_closing') {
+      const total = E7_ALL_DOCS.length;
+      const done = E7_ALL_DOCS.filter(id => milestones[id]).length;
       return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
     }
     // For Fondeo, use actual money received percentage
@@ -3341,7 +3391,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
   function getOverallProgress() {
     // Weighted overall progress:
-    // E2, E3, E7 = milestone-based; E4 = milestone-based; E5 = document-based; E6 = money-based
+    // E2, E3 = milestone-based; E4 = milestone-based; E5 = document-based; E6 = money-based; E7 = document-based
     // Each section contributes equally (1/6 of total)
     const sectionCount = PROJECT_SECTIONS.length;
     let totalPct = 0;
@@ -3641,6 +3691,11 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     part.abonos = abonos;
     const abono = abonos.find(a => a.id === abonoId);
     const updated = participaciones.map((p, i) => i === idx ? part : p);
+    // Calculate totals including this abono
+    const totalGfd = abonos.filter(a => a.tipo === 'gfd' && a.confirmado).reduce((s, a) => s + a.monto, 0);
+    const totalFd = abonos.filter(a => a.tipo === 'fd' && a.confirmado).reduce((s, a) => s + a.monto, 0);
+    const totalRecibido = totalGfd + totalFd;
+    const saldoPendiente = (Number(part.montoInversion) || 0) - totalRecibido;
     try {
       await postGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items`, {
         fields: {
@@ -3654,6 +3709,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           Participaci_x00f3_n: Number(part.porcentaje) || 0,
           MontoGFD: Number(part.gfd) || 0,
           MontoFinalDeposit: Number(part.finalDeposit) || 0,
+          MontoRecibidoTotal: totalRecibido,
+          SaldoPendiente: saldoPendiente,
         }
       });
       await saveParticipaciones(updated);
@@ -3988,7 +4045,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                   <div className="form-group">
                     <label className="form-label">Etapa Actual</label>
                     <select className="form-select" value={form.EtapaActual} onChange={e => setForm({...form, EtapaActual: e.target.value})}>
-                      {["E1 — En evaluación","E2 — LOI & BP","E3 — Onboarding","E4 — Investors","E5 — Purchase","E6 — Funding","E7 — Post-Closing","Cancelado","Declinado"].map(e => <option key={e}>{e}</option>)}
+                      {["E1 — En evaluación","E2 — LOI & BP","E3 — Onboarding","E4 — Investors","E5 — Purchase","E6 — Funding","E7 — Closing","Cancelado","Declinado"].map(e => <option key={e}>{e}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
@@ -4103,7 +4160,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
               {/* Milestones checklist */}
               <div style={{marginBottom:24}}>
-                {section.milestones.map(m => {
+                {section.milestones.filter(m => !m.hidden).map(m => {
                   const done = !!milestones[m.id];
                   return (
                     <div key={m.id} style={{
@@ -4249,6 +4306,35 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                           padding:'10px 22px', background:'none', border:'none',
                           borderBottom: purchaseSubTab===st.id ? `2px solid ${st.color}` : '2px solid transparent',
                           color: purchaseSubTab===st.id ? st.color : 'var(--gw-muted)',
+                          fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:'-2px', transition:'all 0.2s',
+                          display:'flex', alignItems:'center', gap:8
+                        }}>
+                        {st.label}
+                        <span style={{
+                          padding:'2px 8px', borderRadius:99, fontSize:10, fontWeight:700,
+                          background: subPr.pct===100 ? 'rgba(46,204,138,0.15)' : `${st.color}20`,
+                          color: subPr.pct===100 ? 'var(--gw-success)' : st.color
+                        }}>{subPr.pct}%</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── CLOSING SUB-TABS (E7) ── */}
+              {section.id === 'post_closing' && (
+                <div style={{display:'flex', gap:0, marginBottom:18, marginTop:12, borderBottom:'2px solid var(--gw-border)'}}>
+                  {[
+                    {id:'asset_acquisition', label:'🏢 Asset Acquisition', docs: E7_ASSET_ACQUISITION, color:'#2ECC8A'},
+                    {id:'post_closing_investors', label:'👥 Post Closing Investors', docs: E7_POST_CLOSING_INVESTORS, color:'var(--gw-cyan)'}
+                  ].map(st => {
+                    const subPr = getE5SubProgress(st.docs);
+                    return (
+                      <button key={st.id} onClick={() => setClosingSubTab(st.id)}
+                        style={{
+                          padding:'10px 22px', background:'none', border:'none',
+                          borderBottom: closingSubTab===st.id ? `2px solid ${st.color}` : '2px solid transparent',
+                          color: closingSubTab===st.id ? st.color : 'var(--gw-muted)',
                           fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:'-2px', transition:'all 0.2s',
                           display:'flex', alignItems:'center', gap:8
                         }}>
@@ -5382,6 +5468,155 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                 );
               })()}
 
+              {/* ── CLOSING CHECKLIST (E7) ── */}
+              {section.id === 'post_closing' && (() => {
+                const thStyle = {padding:'10px 12px', textAlign:'left', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'};
+                const tdStyle = {padding:'10px 12px', fontSize:13, color:'var(--gw-heading)'};
+                const checkStyle = (checked) => ({
+                  width:18, height:18, borderRadius:4, cursor:'pointer',
+                  border: checked ? '2px solid var(--gw-success)' : '2px solid var(--gw-border)',
+                  background: checked ? 'var(--gw-success)' : 'transparent',
+                  color:'white', display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize:12, fontWeight:700, transition:'all 0.2s', flexShrink:0
+                });
+                const assetAcquisitionDocs = [
+                  { id:'e7_title_commitment', doc:'Title commitment updated — no new exceptions' },
+                  { id:'e7_survey_certified', doc:'Survey certified to title company' },
+                  { id:'e7_leases_reconfirmed', doc:'All leases re-confirmed current (no defaults)' },
+                  { id:'e7_tenant_estoppels', doc:'Tenant estoppels received (min 80% of SF)' },
+                  { id:'e7_snda_executed', doc:'SNDA executed (major tenants)' },
+                  { id:'e7_insurance_binder', doc:'Property insurance binder issued' },
+                  { id:'e7_spe_llc_formed', doc:'SPE / LLC entity formed and authorized' },
+                  { id:'e7_loan_commitment', doc:'Loan commitment letter received' },
+                  { id:'e7_loan_docs_reviewed', doc:'Loan documents reviewed and negotiated' },
+                  { id:'e7_closing_settlement', doc:'Closing / settlement statement drafted' },
+                  { id:'e7_transfer_tax', doc:'Transfer tax calculation confirmed' },
+                  { id:'e7_utility_transfer', doc:'Utility transfer notifications prepared' },
+                  { id:'e7_wire_instructions', doc:'Wire transfer instructions verified (callback confirmation)' },
+                  { id:'e7_special_warranty_deed', doc:'Special Warranty Deed' },
+                  { id:'e7_settlement_closing_stmt', doc:'Settlement / Closing Statement' },
+                  { id:'e7_bill_of_sale', doc:'Bill of Sale' },
+                  { id:'e7_assignment_leases', doc:'Assignment of Leases' },
+                  { id:'e7_assignment_contracts', doc:'Assignment of Contracts' },
+                  { id:'e7_assignment_permits', doc:'Assignment of Permits & Licenses' },
+                  { id:'e7_firpta_certificate', doc:"Seller's FIRPTA Certificate" },
+                  { id:'e7_title_insurance', doc:'Title Insurance Policies' },
+                  { id:'e7_documentary_stamp_tax', doc:'Miami-Dade Documentary Stamp Tax' },
+                ];
+                const postClosingInvestorDocs = [
+                  { id:'e7_llc_confirmadas', doc:'LLC Confirmadas al 100%' },
+                  { id:'e7_paquetes_firmados', doc:'Paquetes firmados por inversionistas' },
+                  { id:'e7_comunicados_cierre', doc:'Comunicados cierre final a inversionistas' },
+                  { id:'e7_titulos_emitidos', doc:'Títulos emitidos y enviados' },
+                ];
+
+                const activeDocs = closingSubTab === 'asset_acquisition' ? assetAcquisitionDocs : postClosingInvestorDocs;
+                const sectionTitle = closingSubTab === 'asset_acquisition' ? '🏢 Asset Acquisition Documents' : '👥 Post Closing Investors';
+                const sectionColor = closingSubTab === 'asset_acquisition' ? '#2ECC8A' : 'var(--gw-cyan)';
+
+                function renderE7DocRow(d) {
+                  const checked = !!milestones[d.id];
+                  return (
+                    <tr key={d.id} style={{borderBottom:'1px solid var(--gw-border)', opacity: checked ? 0.6 : 1, transition:'opacity 0.2s'}}>
+                      <td style={{padding:'10px 12px'}}>
+                        <div onClick={() => setMilestones(prev => ({...prev, [d.id]: !prev[d.id]}))}
+                          style={checkStyle(checked)}>
+                          {checked ? '✓' : ''}
+                        </div>
+                      </td>
+                      <td style={{...tdStyle, fontWeight:600, textDecoration: checked ? 'line-through' : 'none'}}>{d.doc}</td>
+                    </tr>
+                  );
+                }
+
+                return (
+                  <div style={{marginTop:12}}>
+                    <div style={{marginBottom:24}}>
+                      <div style={{fontSize:15, fontWeight:700, color:'var(--gw-heading)', marginBottom:12, display:'flex', alignItems:'center', gap:8}}>
+                        {sectionTitle}
+                      </div>
+                      <div style={{background:'var(--gw-card)', border:'1px solid var(--gw-border)', borderRadius:12, overflowX:'auto'}}>
+                        <table style={{width:'100%', borderCollapse:'collapse', minWidth:500}}>
+                          <thead>
+                            <tr style={{background:'var(--gw-page-bg)', borderBottom:'2px solid var(--gw-border)'}}>
+                              <th style={{...thStyle, width:36}}></th>
+                              <th style={thStyle}>Document / Item</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeDocs.map(d => renderE7DocRow(d))}
+                          </tbody>
+                          <tfoot>
+                            <tr style={{background:'var(--gw-page-bg)', borderTop:'2px solid var(--gw-border)'}}>
+                              <td colSpan={2} style={{padding:'10px 12px', fontSize:12, color:'var(--gw-muted)', fontWeight:600}}>
+                                {activeDocs.filter(d => milestones[d.id]).length} / {activeDocs.length} completed
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                      {/* Sub-section progress bar */}
+                      {(() => {
+                        const subDone = activeDocs.filter(d => milestones[d.id]).length;
+                        const subTotal = activeDocs.length;
+                        const subPct = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0;
+                        const barColor = subPct === 100 ? 'var(--gw-success)' : sectionColor;
+                        return (
+                          <div style={{marginTop:12, background:'var(--gw-card)', border:'1px solid var(--gw-border)', borderRadius:10, padding:'12px 16px'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', marginBottom:6}}>
+                              <span style={{fontSize:11, fontWeight:600, color:'var(--gw-heading)'}}>Progreso {sectionTitle.replace(/^[^\s]+\s/, '')}</span>
+                              <span style={{fontSize:11, fontWeight:700, color: barColor}}>{subPct}%</span>
+                            </div>
+                            <div style={{height:8, background:'var(--gw-border)', borderRadius:4, overflow:'hidden'}}>
+                              <div style={{width:`${subPct}%`, height:'100%', borderRadius:4, background:barColor, transition:'width 0.5s ease'}} />
+                            </div>
+                            <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:4}}>{subDone}/{subTotal} items completados</div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* ── Combined E7 progress breakdown ── */}
+                    <div style={{marginTop:20, background:'var(--gw-card)', border:'1px solid var(--gw-border)', borderRadius:12, padding:'16px 20px'}}>
+                      <div style={{fontSize:13, fontWeight:700, color:'var(--gw-heading)', marginBottom:14}}>📊 Progreso General — Closing</div>
+                      {[
+                        { label:'🏢 Asset Acquisition', ids: E7_ASSET_ACQUISITION, color:'#2ECC8A' },
+                        { label:'👥 Post Closing Investors', ids: E7_POST_CLOSING_INVESTORS, color:'var(--gw-cyan)' }
+                      ].map(sub => {
+                        const pr = getE5SubProgress(sub.ids);
+                        return (
+                          <div key={sub.label} style={{marginBottom:10}}>
+                            <div style={{display:'flex', justifyContent:'space-between', marginBottom:4}}>
+                              <span style={{fontSize:11, fontWeight:600, color:'var(--gw-body)'}}>{sub.label}</span>
+                              <span style={{fontSize:11, fontWeight:700, color: pr.pct===100 ? 'var(--gw-success)' : sub.color}}>{pr.done}/{pr.total} — {pr.pct}%</span>
+                            </div>
+                            <div style={{height:6, background:'var(--gw-border)', borderRadius:3, overflow:'hidden'}}>
+                              <div style={{width:`${pr.pct}%`, height:'100%', borderRadius:3, background: pr.pct===100 ? 'var(--gw-success)' : sub.color, transition:'width 0.5s ease'}} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {/* Weighted total */}
+                      {(() => {
+                        const overall = getSectionProgress({id:'post_closing'});
+                        return (
+                          <div style={{marginTop:12, paddingTop:12, borderTop:'1px solid var(--gw-border)'}}>
+                            <div style={{display:'flex', justifyContent:'space-between', marginBottom:4}}>
+                              <span style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)'}}>🎉 Total Closing</span>
+                              <span style={{fontSize:12, fontWeight:700, color: overall.pct===100 ? 'var(--gw-success)' : '#2ECC8A'}}>{overall.done}/{overall.total} — {overall.pct}%</span>
+                            </div>
+                            <div style={{height:8, background:'var(--gw-border)', borderRadius:4, overflow:'hidden'}}>
+                              <div style={{width:`${overall.pct}%`, height:'100%', borderRadius:4, background: overall.pct===100 ? 'var(--gw-success)' : '#2ECC8A', transition:'width 0.5s ease'}} />
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                  </div>
+                );
+              })()}
+
               {/* ── FOLDER LINKS PER SECTION ── */}
               {SECTION_FOLDERS[section.id] && folderUrl && (
                 <div style={{
@@ -5570,7 +5805,7 @@ function ActivosPage({ siteId }) {
       Title:"",
       NombreComercial:"",
       Tipodeactivo:"Oficina",
-      Estado:"En evaluación",
+      Estado:"E1 — En evaluación",
       Ubicaci_x00f3_n:"",
       Ciudad:"",
       Estado_x002f_Provincia:"Florida",
@@ -5621,7 +5856,7 @@ function ActivosPage({ siteId }) {
           console.log('[GWealth] Estado choices from SP:', choices);
           setEstados(choices);
         } else {
-          setEstados(["E1 — En evaluación","E2 — LOI & BP","E3 — Onboarding","E4 — Investors","E5 — Purchase","E6 — Funding","E7 — Post-Closing","Cancelado","Declinado"]);
+          setEstados(["E1 — En evaluación","E2 — LOI & BP","E3 — Onboarding","E4 — Investors","E5 — Purchase","E6 — Funding","E7 — Closing","Cancelado","Declinado"]);
         }
 
         // Buscar columna Tipodeactivo para verificar nombre interno
@@ -5644,7 +5879,7 @@ function ActivosPage({ siteId }) {
         console.error('Error cargando columnas:', e);
         setEvaluadores([]);
         setBrokerRefChoices([]);
-        setEstados(["E1 — En evaluación","E2 — LOI & BP","E3 — Onboarding","E4 — Investors","E5 — Purchase","E6 — Funding","E7 — Post-Closing","Cancelado","Declinado"]);
+        setEstados(["E1 — En evaluación","E2 — LOI & BP","E3 — Onboarding","E4 — Investors","E5 — Purchase","E6 — Funding","E7 — Closing","Cancelado","Declinado"]);
       } finally {
         setLoadingEvaluadores(false);
         setLoadingEstados(false);
