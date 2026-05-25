@@ -1001,7 +1001,7 @@ const PROJECT_SECTIONS = [
   {
     id: 'fondeo', label: 'E6 — Funding', icon: '💰', color: '#C8960C',
     milestones: [
-      { id: 'fondeo_completo', label: 'Funding completed for all investors', desc: 'All GFD and Final Deposits received', required: true, autoCheck: 'fondeo' },
+      { id: 'fondeo_completo', label: 'Funding completed for all investors', desc: 'All GFD and Final Deposits received', required: true, autoCheck: 'fondeo', hidden: true },
     ]
   },
   {
@@ -1497,30 +1497,44 @@ const _E7_ALL_DOCS_GLOBAL = [
   'e7_llc_confirmadas','e7_paquetes_firmados','e7_comunicados_cierre','e7_titulos_emitidos'
 ];
 
-function calculateMilestoneProgress(milestonesJson) {
+function calculateMilestoneProgress(milestonesJson, fondeoPct) {
   if (!milestonesJson) return { completed: 0, total: 0, percentage: 0 };
   const blob = typeof milestonesJson === 'string' ? JSON.parse(milestonesJson) : milestonesJson;
-  // Count E5/E7 docs instead of single checkboxes for weighted progress
-  let completed = 0;
-  let total = 0;
+  // Weighted by section: each section contributes equally (1/N of total)
+  // E5 = 19 docs, E7 = 26 docs, fondeo = money-based (recibido/esperado)
+  const sectionCount = PROJECT_SECTIONS.length;
+  let totalPct = 0;
   PROJECT_SECTIONS.forEach(s => {
+    let pct = 0;
     if (s.id === 'e5') {
-      total += _E5_ALL_DOCS_GLOBAL.length;
-      completed += _E5_ALL_DOCS_GLOBAL.filter(id => blob[id] === true).length;
+      const t = _E5_ALL_DOCS_GLOBAL.length;
+      const d = _E5_ALL_DOCS_GLOBAL.filter(id => blob[id] === true).length;
+      pct = t > 0 ? (d / t) * 100 : 0;
     } else if (s.id === 'post_closing') {
-      total += _E7_ALL_DOCS_GLOBAL.length;
-      completed += _E7_ALL_DOCS_GLOBAL.filter(id => blob[id] === true).length;
+      const t = _E7_ALL_DOCS_GLOBAL.length;
+      const d = _E7_ALL_DOCS_GLOBAL.filter(id => blob[id] === true).length;
+      pct = t > 0 ? (d / t) * 100 : 0;
+    } else if (s.id === 'fondeo') {
+      // Use money-based fondeo %: prefer passed value, then stored value in blob, then checkbox fallback
+      const fp = typeof fondeoPct === 'number' ? fondeoPct : (typeof blob._fondeo_pct === 'number' ? blob._fondeo_pct : null);
+      if (fp !== null) {
+        pct = Math.min(100, fp);
+      } else {
+        const mils = s.milestones;
+        const t = mils.length;
+        const d = mils.filter(m => blob[m.id] === true).length;
+        pct = t > 0 ? (d / t) * 100 : 0;
+      }
     } else {
-      const req = s.milestones.filter(m => m.required);
-      total += req.length;
-      completed += req.filter(m => blob[m.id] === true).length;
+      const mils = s.milestones;
+      const t = mils.length;
+      const d = mils.filter(m => blob[m.id] === true).length;
+      pct = t > 0 ? (d / t) * 100 : 0;
     }
+    totalPct += pct;
   });
-  return {
-    completed,
-    total,
-    percentage: total > 0 ? Math.round((completed / total) * 100) : 0
-  };
+  const percentage = sectionCount > 0 ? Math.round(totalPct / sectionCount) : 0;
+  return { completed: percentage, total: 100, percentage };
 }
 
 // ── Inversiones (Participaciones) SharePoint List helpers ─────────────────
@@ -1979,6 +1993,13 @@ function Dashboard({ siteInv, siteProy }) {
     const loan = proy ? getProjectLoan(proy) : 0;
     return investorCapital + loan;
   }
+  // Helper to get fondeo % based on money (recibido / montoInversion total)
+  function getProjectFondeoPct(proyId) {
+    const parts = partsByProject[String(proyId)] || [];
+    const totalRecibido = parts.reduce((s, p) => s + (Number(p.gfdRecibido) || 0) + (Number(p.fdRecibido) || 0), 0);
+    const totalEsperado = parts.reduce((s, p) => s + (Number(p.montoInversion) || 0), 0);
+    return totalEsperado > 0 ? Math.min(100, Math.round(totalRecibido / totalEsperado * 100)) : 0;
+  }
 
   // ─── FILTERED DATA (all metrics respond to project filter) ──────────────
   const activeProyIds = new Set(activeProy.map(p => String(p.id)));
@@ -2076,7 +2097,7 @@ function Dashboard({ siteInv, siteProy }) {
   // ─── OPERATIONAL metrics ─────────────────────────────────────────────────
   // Avg milestone progress across filtered projects (exclude Cancelado/Descartado)
   const nonCancelledProy = approvedProy;
-  const progresses = nonCancelledProy.map(p => calculateMilestoneProgress(p.fields?.Milestones).percentage);
+  const progresses = nonCancelledProy.map(p => calculateMilestoneProgress(p.fields?.Milestones, getProjectFondeoPct(p.id)).percentage);
   const avgProgress = progresses.length > 0 ? Math.round(progresses.reduce((s,v)=>s+v,0) / progresses.length) : 0;
   const proyConAvance   = progresses.filter(v => v > 0).length;
   const proyCompletos   = progresses.filter(v => v === 100).length;
@@ -2092,7 +2113,7 @@ function Dashboard({ siteInv, siteProy }) {
   // Avg project resolution time (days between project creation and 100% completion)
   const proyDias = [];
   activeProy.forEach(p => {
-    const pct = calculateMilestoneProgress(p.fields?.Milestones).percentage;
+    const pct = calculateMilestoneProgress(p.fields?.Milestones, getProjectFondeoPct(p.id)).percentage;
     if (pct === 100) {
       const created = p.createdDateTime ? new Date(p.createdDateTime) : null;
       const proyHitos = filteredHitos.filter(h => String(h.fields?.ProyectoLookupId || h.fields?.ProyectoId) === String(p.id));
@@ -2136,7 +2157,7 @@ function Dashboard({ siteInv, siteProy }) {
     let av, bv;
     if (sortField === 'Title') { av = a.fields.Title||''; bv = b.fields.Title||''; return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av); }
     if (sortField === 'EtapaActual') { av = a.fields.EtapaActual||''; bv = b.fields.EtapaActual||''; return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av); }
-    if (sortField === 'progreso') { av = calculateMilestoneProgress(a.fields?.Milestones).percentage; bv = calculateMilestoneProgress(b.fields?.Milestones).percentage; }
+    if (sortField === 'progreso') { av = calculateMilestoneProgress(a.fields?.Milestones, getProjectFondeoPct(a.id)).percentage; bv = calculateMilestoneProgress(b.fields?.Milestones, getProjectFondeoPct(b.id)).percentage; }
     else if (sortField === 'target') { av = parseFloat(a.fields.MontoTarget||0); bv = parseFloat(b.fields.MontoTarget||0); }
     else if (sortField === 'levantado') { av = getProjectLevantado(a.id, a); bv = getProjectLevantado(b.id, b); }
     else if (sortField === 'fondeo') { av = parseFloat(a.fields.MontoTarget||0)>0?getProjectLevantado(a.id, a)/parseFloat(a.fields.MontoTarget||0):0; bv = parseFloat(b.fields.MontoTarget||0)>0?getProjectLevantado(b.id, b)/parseFloat(b.fields.MontoTarget||0):0; }
@@ -2527,7 +2548,7 @@ function Dashboard({ siteInv, siteProy }) {
               </thead>
               <tbody>
                 {sortedProyectos.map(p => {
-                  const prog = calculateMilestoneProgress(p.fields?.Milestones);
+                  const prog = calculateMilestoneProgress(p.fields?.Milestones, getProjectFondeoPct(p.id));
                   const tgt  = parseFloat(p.fields.MontoTarget || 0);
                   const lev  = getProjectLevantado(p.id, p);
                   const fpct = tgt > 0 ? Math.round((lev/tgt)*100) : 0;
@@ -2802,7 +2823,6 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
   // Activos map for Loan lookup in project list
   const [activosMap, setActivosMap] = useState({});
-
   useEffect(() => {
     async function load() {
       try {
@@ -2810,7 +2830,32 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           callGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items?$expand=fields&$top=100`),
           callGraph(`/sites/${siteId}/lists/${LISTS.activos}/items?$expand=fields&$top=500`),
         ]);
-        setItems(proyRes.value || []);
+        // Auto-complete E7 milestones in-memory for table progress display
+        const proyItems = (proyRes.value || []).map(item => {
+          const etapa = item.fields?.EtapaActual || '';
+          if (etapa.includes('Closing') || etapa.includes('Post') || etapa.includes('7')) {
+            let blob = {};
+            try { blob = item.fields?.Milestones ? JSON.parse(item.fields.Milestones) : {}; } catch(e) { blob = {}; }
+            const allIds = [
+              'bp1_elaborado','bp1_aprobado','loi_redactado','loi_firmado','bp2_elaborado','bp2_aprobado',
+              'brochure_onepager_realizado','brochure_onepager_aprobado','brochure_full_realizado','brochure_full_aprobado',
+              'ein_obtenido','ts_proyecto','llc_constituida','cuenta_bancaria',
+              'inv_completo','purchase_completo','fondeo_completo','e7_closing_completo',
+              ..._E5_ALL_DOCS_GLOBAL, ..._E7_ALL_DOCS_GLOBAL
+            ];
+            let changed = false;
+            allIds.forEach(id => { if (!blob[id]) { blob[id] = true; changed = true; } });
+            if (changed) {
+              const newMilJson = JSON.stringify(blob);
+              patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${item.id}`, { fields: { Milestones: newMilJson } })
+                .then(() => console.log('[GWealth] Auto-completed milestones for E7 project (list):', item.fields.Title))
+                .catch(e => console.warn('[GWealth] Could not auto-complete:', e.message));
+              return { ...item, fields: { ...item.fields, Milestones: newMilJson } };
+            }
+          }
+          return item;
+        });
+        setItems(proyItems);
         const aMap = {};
         (actRes.value || []).forEach(a => { aMap[String(a.id)] = a; });
         setActivosMap(aMap);
@@ -2975,12 +3020,19 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       if (changed) {
         // Persist auto-completed milestones to SharePoint
         const saveBlob = { ...mils, ...Object.fromEntries(Object.entries(nts).map(([k,v]) => [`notes_${k}`, v])) };
+        const saveBlobStr = JSON.stringify(saveBlob);
         patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${item.id}`, {
-          fields: { Milestones: JSON.stringify(saveBlob) }
+          fields: { Milestones: saveBlobStr }
         }).then(() => console.log('[GWealth] Auto-completed milestones for E7 project:', item.fields.Title))
           .catch(e => console.warn('[GWealth] Could not save auto-completed milestones:', e.message));
+        // Also update in-memory items array so table shows correct progress
+        setItems(prev => prev.map(it => it.id === item.id ? { ...it, fields: { ...it.fields, Milestones: saveBlobStr } } : it));
       }
     }
+    // Sync in-memory items array with migrated milestones so table matches detail view
+    const syncBlob = JSON.stringify({ ...mils, ...Object.fromEntries(Object.entries(nts).map(([k,v]) => [`notes_${k}`, v])) });
+    setItems(prev => prev.map(it => it.id === item.id ? { ...it, fields: { ...it.fields, Milestones: syncBlob } } : it));
+
     setMilestones(mils);
     setNotes(nts);
     setForm({
@@ -3253,6 +3305,30 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     syncEtapa();
   }, [projectHitos, milestones]);
 
+  // Auto-sync _overall_pct to SharePoint so table always matches detail view
+  useEffect(() => {
+    if (!viewingProject) return;
+    // Wait until participaciones are loaded (they start empty)
+    // For projects with no investors, participaciones stays [] which is fine
+    const pct = getOverallProgress();
+    const blob = viewingProject.fields?.Milestones
+      ? (typeof viewingProject.fields.Milestones === 'string' ? (() => { try { return JSON.parse(viewingProject.fields.Milestones); } catch(e) { return {}; } })() : viewingProject.fields.Milestones)
+      : {};
+    const storedPct = blob._overall_pct;
+    if (storedPct !== pct) {
+      // Update blob with new _overall_pct
+      const updatedBlob = { ...blob, _overall_pct: pct };
+      const updatedStr = JSON.stringify(updatedBlob);
+      // Persist to SharePoint silently
+      patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${viewingProject.id}`, {
+        fields: { Milestones: updatedStr }
+      }).then(() => console.log('[GWealth] Auto-synced _overall_pct:', pct, 'for', viewingProject.fields?.Title))
+        .catch(e => console.warn('[GWealth] Could not sync _overall_pct:', e.message));
+      // Update items array so table reflects it immediately
+      setItems(prev => prev.map(it => it.id === viewingProject.id ? { ...it, fields: { ...it.fields, Milestones: updatedStr } } : it));
+    }
+  }, [milestones, participaciones, viewingProject?.id]);
+
   // Auto-check purchase_completo when E5 document checkboxes change
   useEffect(() => {
     if (!viewingProject) return;
@@ -3281,6 +3357,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     try {
       const blob = { ...milestones };
       Object.keys(notes).forEach(k => { blob[`notes_${k}`] = notes[k]; });
+      // Store overall progress % so table view reads the same value without recalculating
+      blob._overall_pct = getOverallProgress();
 
       // Auto-detect etapa based on completed sections
       const newEtapa = detectCurrentEtapa(milestones);
@@ -3390,9 +3468,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   }
 
   function getOverallProgress() {
-    // Weighted overall progress:
-    // E2, E3 = milestone-based; E4 = milestone-based; E5 = document-based; E6 = money-based; E7 = document-based
-    // Each section contributes equally (1/6 of total)
+    // Weighted: each section contributes equally, using getSectionProgress for each
+    // E5 = doc-based, E6 = money-based, E7 = doc-based, others = milestone-based
     const sectionCount = PROJECT_SECTIONS.length;
     let totalPct = 0;
     PROJECT_SECTIONS.forEach(s => {
@@ -3706,7 +3783,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           ProyectoLookupId: String(viewingProject.id),
           Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
           MontoInversi_x00f3_n: abono.monto,
-          Participaci_x00f3_n: Number(part.porcentaje) || 0,
+          Participaci_x00f3_n: (Number(part.porcentaje) || 0) / 100,
           MontoGFD: Number(part.gfd) || 0,
           MontoFinalDeposit: Number(part.finalDeposit) || 0,
           MontoRecibidoTotal: totalRecibido,
@@ -4151,7 +4228,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                     </div>
                     <div style={{fontSize:11, color:'var(--gw-muted)', marginTop:6}}>
                       {pr.isMoney
-                        ? `$${Number(pr.done).toLocaleString()} / $${Number(pr.total).toLocaleString()} • Fondeo basado en abonos recibidos`
+                        ? `$${Number(pr.done).toLocaleString()} / $${Number(pr.total).toLocaleString()} • Collected`
                         : `${pr.done}/${pr.total} hitos • Haz clic en cada hito para marcarlo como completado`}
                     </div>
                   </div>
@@ -4387,7 +4464,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                           {participaciones.length} inversionista{participaciones.length !== 1 ? 's' : ''} vinculado{participaciones.length !== 1 ? 's' : ''}
                           {participaciones.length > 0 && (
                             <span style={{marginLeft:10, color:'var(--gw-cyan)', fontWeight:600}}>
-                              · {participaciones.reduce((s,p)=>s+p.porcentaje,0).toFixed(1)}% asignado
+                              · {participaciones.reduce((s,p)=>s+p.porcentaje,0).toFixed(1)}% Sold
                             </span>
                           )}
                         </div>
@@ -4771,7 +4848,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                               ProyectoLookupId: String(viewingProject.id),
                                               Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
                                               MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
-                                              Participaci_x00f3_n: Number(part.porcentaje) || 0,
+                                              Participaci_x00f3_n: (Number(part.porcentaje) || 0) / 100,
                                               MontoGFD: Number(part.gfd) || 0,
                                               MontoFinalDeposit: Number(part.finalDeposit) || 0,
                                             }
@@ -4821,7 +4898,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                                 ProyectoLookupId: String(viewingProject.id),
                                                 Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
                                                 MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
-                                                Participaci_x00f3_n: Number(part.porcentaje) || 0,
+                                                Participaci_x00f3_n: (Number(part.porcentaje) || 0) / 100,
                                                 MontoGFD: Number(part.gfd) || 0,
                                                 MontoFinalDeposit: Number(part.finalDeposit) || 0,
                                               }
@@ -4851,7 +4928,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                                 ProyectoLookupId: String(viewingProject.id),
                                                 Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
                                                 MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
-                                                Participaci_x00f3_n: Number(part.porcentaje) || 0,
+                                                Participaci_x00f3_n: (Number(part.porcentaje) || 0) / 100,
                                                 MontoGFD: Number(part.gfd) || 0,
                                                 MontoFinalDeposit: Number(part.finalDeposit) || 0,
                                               }
@@ -4969,7 +5046,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                                 ProyectoLookupId: String(viewingProject.id),
                                                 Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
                                                 MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
-                                                Participaci_x00f3_n: Number(part.porcentaje) || 0,
+                                                Participaci_x00f3_n: (Number(part.porcentaje) || 0) / 100,
                                                 MontoGFD: Number(part.gfd) || 0,
                                                 MontoFinalDeposit: Number(part.finalDeposit) || 0,
                                                 InversionesItemId: String(part._spId || ''),
@@ -5000,7 +5077,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                                 ProyectoLookupId: String(viewingProject.id),
                                                 Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
                                                 MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
-                                                Participaci_x00f3_n: Number(part.porcentaje) || 0,
+                                                Participaci_x00f3_n: (Number(part.porcentaje) || 0) / 100,
                                                 MontoGFD: Number(part.gfd) || 0,
                                                 MontoFinalDeposit: Number(part.finalDeposit) || 0,
                                                 InversionesItemId: String(part._spId || ''),
@@ -5033,7 +5110,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                                 ProyectoLookupId: String(viewingProject.id),
                                                 Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
                                                 MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
-                                                Participaci_x00f3_n: Number(part.porcentaje) || 0,
+                                                Participaci_x00f3_n: (Number(part.porcentaje) || 0) / 100,
                                                 MontoGFD: Number(part.gfd) || 0,
                                                 MontoFinalDeposit: Number(part.finalDeposit) || 0,
                                                 InversionesItemId: String(part._spId || ''),
@@ -5079,24 +5156,31 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 <td style={{padding:'10px 12px', fontSize:12, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase'}}>TOTAL</td>
                                 {isFondeo ? (
                                   <>
-                                    <td />
+                                    {/* Monto USD */}
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:13, fontWeight:800, color:'var(--gw-heading)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.montoInversion)||0),0).toLocaleString()}
                                     </td>
+                                    {/* Fecha GFD */}
                                     <td />
+                                    {/* GFD Proyectado */}
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:12, fontWeight:700, color:'var(--gw-cyan)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.gfd)||0),0).toLocaleString()}
                                     </td>
+                                    {/* GFD Recibido */}
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:12, fontWeight:700, color:'var(--gw-success)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.gfdRecibido)||0),0).toLocaleString()}
                                     </td>
+                                    {/* Fecha Final Dep. */}
                                     <td />
+                                    {/* FD Esperado */}
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:12, fontWeight:700, color:'var(--gw-cyan)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.finalDeposit)||0),0).toLocaleString()}
                                     </td>
+                                    {/* FD Recibido */}
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:12, fontWeight:700, color:'var(--gw-success)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.fdRecibido)||0),0).toLocaleString()}
                                     </td>
+                                    {/* Total Recibido */}
                                     <td style={{padding:'10px 12px', textAlign:'center'}}>
                                       {(() => {
                                         const totalRec = participaciones.reduce((s,p)=>s+(Number(p.gfdRecibido)||0)+(Number(p.fdRecibido)||0),0);
@@ -5114,6 +5198,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                         );
                                       })()}
                                     </td>
+                                    {/* Acción */}
                                     <td />
                                   </>
                                 ) : (
@@ -5713,7 +5798,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
               <tr><td colSpan="9"><div className="empty-state"><div className="empty-title">Sin proyectos registrados</div></div></td></tr>
             )}
             {filtered.map(p => {
-              const progress = calculateMilestoneProgress(p.fields?.Milestones);
+              const _blob = (() => { try { return p.fields?.Milestones ? JSON.parse(p.fields.Milestones) : {}; } catch(e) { return {}; } })();
+              const progress = { percentage: typeof _blob._overall_pct === 'number' ? _blob._overall_pct : calculateMilestoneProgress(p.fields?.Milestones).percentage };
               return (
                 <tr key={p.id}
                   onClick={() => openProject(p)}
@@ -6177,7 +6263,7 @@ function ActivosPage({ siteId }) {
               <div className="form-grid">
                 <div className="form-group full">
                   <label className="form-label">Nombre del Activo *</label>
-                  <input className="form-input" placeholder="Ej: Nombre LLC" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} required />
+                  <input className="form-input" placeholder="Ej: Nombre LLC, GW WELLS LLC" value={form.Title} onChange={e => setForm({...form, Title: e.target.value})} required />
                 </div>
                 <div className="form-group full">
                   <label className="form-label">Nombre Comercial</label>
