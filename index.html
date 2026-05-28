@@ -963,6 +963,12 @@ const SECTION_FOLDERS = {
 // Secciones del proceso de proyecto con sus hitos (GWealth IMA E2-PostClosing)
 const PROJECT_SECTIONS = [
   {
+    id: 'e1', label: 'E1 — Evaluación', icon: '🔍', color: '#FF8C42',
+    milestones: [
+      { id: 'e1_evaluacion_completa', label: 'Evaluación completada', desc: 'El proyecto ha pasado la etapa de evaluación inicial', required: true, autoCheck: 'e1', hidden: true },
+    ]
+  },
+  {
     id: 'e2', label: 'E2 — LOI & BP', icon: '📄', color: '#E8A030',
     milestones: [
       { id: 'bp1_elaborado',   label: 'BP1 elaborado',              desc: 'Business Plan 1 con análisis financiero preliminar', required: true },
@@ -989,7 +995,7 @@ const PROJECT_SECTIONS = [
   {
     id: 'e4', label: 'E4 — Investors', icon: '🤝', color: '#1A6B3A',
     milestones: [
-      { id: 'inv_completo', label: 'Investors confirmed and documentation complete', desc: 'All investors active with signed TS, GFD and Final Deposit received', required: true, autoCheck: 'e4' },
+      { id: 'inv_completo', label: 'Investors confirmed and documentation complete', desc: 'All investors active with signed TS, GFD and Final Deposit received', required: true, autoCheck: 'e4', hidden: true },
     ]
   },
   {
@@ -1506,7 +1512,10 @@ function calculateMilestoneProgress(milestonesJson, fondeoPct) {
   let totalPct = 0;
   PROJECT_SECTIONS.forEach(s => {
     let pct = 0;
-    if (s.id === 'e5') {
+    if (s.id === 'e1') {
+      // E1 is always 100% — project exists = evaluation complete
+      pct = 100;
+    } else if (s.id === 'e5') {
       const t = _E5_ALL_DOCS_GLOBAL.length;
       const d = _E5_ALL_DOCS_GLOBAL.filter(id => blob[id] === true).length;
       pct = t > 0 ? (d / t) * 100 : 0;
@@ -1514,8 +1523,16 @@ function calculateMilestoneProgress(milestonesJson, fondeoPct) {
       const t = _E7_ALL_DOCS_GLOBAL.length;
       const d = _E7_ALL_DOCS_GLOBAL.filter(id => blob[id] === true).length;
       pct = t > 0 ? (d / t) * 100 : 0;
+    } else if (s.id === 'e4') {
+      // E4: prefer passed/stored SA-based percentage, fallback to checkpoint
+      const ep = typeof blob._e4_pct === 'number' ? blob._e4_pct : null;
+      if (ep !== null) {
+        pct = Math.min(100, ep);
+      } else {
+        pct = blob.inv_completo ? 100 : 0;
+      }
     } else if (s.id === 'fondeo') {
-      // Use money-based fondeo %: prefer passed value, then stored value in blob, then checkbox fallback
+      // E6: prefer passed value, then stored value in blob, then checkpoint fallback
       const fp = typeof fondeoPct === 'number' ? fondeoPct : (typeof blob._fondeo_pct === 'number' ? blob._fondeo_pct : null);
       if (fp !== null) {
         pct = Math.min(100, fp);
@@ -1632,6 +1649,8 @@ function spItemToParticipacion(item) {
     // Title format is "InvestorName — ProjectName", extract just the name
     invNombre = f.Title.includes(' — ') ? f.Title.split(' — ')[0].trim() : f.Title;
   }
+  // Strip HTML tags (e.g. <br>) that may be embedded in SharePoint fields
+  invNombre = invNombre.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
   return {
     _spId: item.id,  // SharePoint item ID for CRUD operations
@@ -2634,6 +2653,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
   // ── Investor module state ──
   const [participaciones, setParticipaciones] = useState([]);
+  const [participacionesLoaded, setParticipacionesLoaded] = useState(false);
   const [allInversionistas, setAllInversionistas] = useState([]);
   const [loadingInv, setLoadingInv] = useState(false);
   const [showAddInv, setShowAddInv] = useState(false);
@@ -2663,6 +2683,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
 
   // ── Abonos modal state ──
   const [abonoModal, setAbonoModal] = useState(null); // { idx, part }
+  const [editingPartIdx, setEditingPartIdx] = useState(null); // Index of participacion being edited inline
   const [newAbono, setNewAbono] = useState({ fecha:'', monto:'', tipo:'gfd', referencia:'', notas:'' });
 
   const [form, setForm] = useState({
@@ -3069,7 +3090,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
             const f = inv.fields || {};
             return {
               ...p,
-              nombre: f.Title || p.nombre,
+              nombre: (f.Title || p.nombre || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
               email: f.field_2 || p.email,
               tipo: (f.field_1 || '').toLowerCase().includes('jur') ? 'juridica' : (f.field_1 ? 'natural' : p.tipo),
               esProspecto: f.Estado !== 'Activo',
@@ -3102,7 +3123,8 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
           }
         }
         setParticipaciones(parts);
-      } catch(e) { setParticipaciones([]); }
+        setParticipacionesLoaded(true);
+      } catch(e) { setParticipaciones([]); setParticipacionesLoaded(true); }
     })();
     // Load approval hitos for this project
     loadProjectHitos(item.id);
@@ -3113,6 +3135,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     setProjectHitos([]);
     setActiveTab('general');
     setEditingForm(false);
+    setParticipacionesLoaded(false);
   }
 
   function toggleMilestone(milId) {
@@ -3305,29 +3328,26 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     syncEtapa();
   }, [projectHitos, milestones]);
 
-  // Auto-sync _overall_pct to SharePoint so table always matches detail view
+  // Auto-sync _overall_pct, _e4_pct, _fondeo_pct to SharePoint so table always matches detail view
+  // IMPORTANT: Only run AFTER participaciones have loaded to avoid writing wrong E4/E6 values
   useEffect(() => {
-    if (!viewingProject) return;
-    // Wait until participaciones are loaded (they start empty)
-    // For projects with no investors, participaciones stays [] which is fine
+    if (!viewingProject || !participacionesLoaded) return;
     const pct = getOverallProgress();
+    const e4Pct = getSectionProgress(PROJECT_SECTIONS.find(s => s.id === 'e4')).pct;
+    const fondeoPct = getSectionProgress(PROJECT_SECTIONS.find(s => s.id === 'fondeo')).pct;
     const blob = viewingProject.fields?.Milestones
       ? (typeof viewingProject.fields.Milestones === 'string' ? (() => { try { return JSON.parse(viewingProject.fields.Milestones); } catch(e) { return {}; } })() : viewingProject.fields.Milestones)
       : {};
-    const storedPct = blob._overall_pct;
-    if (storedPct !== pct) {
-      // Update blob with new _overall_pct
-      const updatedBlob = { ...blob, _overall_pct: pct };
+    if (blob._overall_pct !== pct || blob._e4_pct !== e4Pct || blob._fondeo_pct !== fondeoPct) {
+      const updatedBlob = { ...blob, _overall_pct: pct, _e4_pct: e4Pct, _fondeo_pct: fondeoPct };
       const updatedStr = JSON.stringify(updatedBlob);
-      // Persist to SharePoint silently
       patchGraph(`/sites/${siteId}/lists/${LISTS.proyectos}/items/${viewingProject.id}`, {
         fields: { Milestones: updatedStr }
-      }).then(() => console.log('[GWealth] Auto-synced _overall_pct:', pct, 'for', viewingProject.fields?.Title))
-        .catch(e => console.warn('[GWealth] Could not sync _overall_pct:', e.message));
-      // Update items array so table reflects it immediately
+      }).then(() => console.log('[GWealth] Auto-synced progress:', pct, 'e4:', e4Pct, 'fondeo:', fondeoPct, 'for', viewingProject.fields?.Title))
+        .catch(e => console.warn('[GWealth] Could not sync progress:', e.message));
       setItems(prev => prev.map(it => it.id === viewingProject.id ? { ...it, fields: { ...it.fields, Milestones: updatedStr } } : it));
     }
-  }, [milestones, participaciones, viewingProject?.id]);
+  }, [milestones, participacionesLoaded, participaciones, viewingProject?.id]);
 
   // Auto-check purchase_completo when E5 document checkboxes change
   useEffect(() => {
@@ -3339,6 +3359,25 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       setMilestones(prev => ({ ...prev, purchase_completo: false }));
     }
   }, [milestones, viewingProject]);
+
+  // Auto-check e1_evaluacion_completa — always true (project exists = E1 done)
+  useEffect(() => {
+    if (!viewingProject) return;
+    if (!milestones.e1_evaluacion_completa) {
+      setMilestones(prev => ({ ...prev, e1_evaluacion_completa: true }));
+    }
+  }, [viewingProject]);
+
+  // Auto-check inv_completo when SA status changes on participaciones
+  useEffect(() => {
+    if (!viewingProject || participaciones.length === 0) return;
+    const allSAFirmado = participaciones.every(p => (p.saEstado || '').toLowerCase() === 'firmado');
+    if (allSAFirmado && !milestones.inv_completo) {
+      setMilestones(prev => ({ ...prev, inv_completo: true }));
+    } else if (!allSAFirmado && milestones.inv_completo) {
+      setMilestones(prev => ({ ...prev, inv_completo: false }));
+    }
+  }, [participaciones, viewingProject]);
 
   // Auto-check e7_closing_completo when E7 document checkboxes change
   useEffect(() => {
@@ -3357,8 +3396,10 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
     try {
       const blob = { ...milestones };
       Object.keys(notes).forEach(k => { blob[`notes_${k}`] = notes[k]; });
-      // Store overall progress % so table view reads the same value without recalculating
+      // Store progress values so table view can calculate accurately without participaciones
       blob._overall_pct = getOverallProgress();
+      blob._e4_pct = getSectionProgress(PROJECT_SECTIONS.find(s => s.id === 'e4')).pct;
+      blob._fondeo_pct = getSectionProgress(PROJECT_SECTIONS.find(s => s.id === 'fondeo')).pct;
 
       // Auto-detect etapa based on completed sections
       const newEtapa = detectCurrentEtapa(milestones);
@@ -3443,6 +3484,16 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   }
 
   function getSectionProgress(section) {
+    // E1 is always 100% — if the project exists, evaluation is complete
+    if (section.id === 'e1') {
+      return { done: 1, total: 1, pct: 100 };
+    }
+    // For E4, use SA firmado count / total investors
+    if (section.id === 'e4') {
+      const total = participaciones.length;
+      const done = participaciones.filter(p => (p.saEstado || '').toLowerCase() === 'firmado').length;
+      return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
+    }
     // For E5, use weighted progress from all purchase documents instead of single checkbox
     if (section.id === 'e5') {
       const total = E5_ALL_DOCS.length;
@@ -3537,7 +3588,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
       // Auto-check milestones based on investor statuses
       if (updated.length > 0) {
         const allE4Done = updated.every(p =>
-          p.tsEstado === 'firmado' && p.gfdEstado === 'recibido' && p.fdEstado === 'recibido'
+          (p.saEstado || '').toLowerCase() === 'firmado'
         );
         const allFondeoDone = updated.every(p =>
           Number(p.gfdRecibido) >= Number(p.gfd) && Number(p.fdRecibido) >= Number(p.finalDeposit) && Number(p.gfd) > 0 && Number(p.finalDeposit) > 0
@@ -4229,6 +4280,10 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                     <div style={{fontSize:11, color:'var(--gw-muted)', marginTop:6}}>
                       {pr.isMoney
                         ? `$${Number(pr.done).toLocaleString()} / $${Number(pr.total).toLocaleString()} • Collected`
+                        : section.id === 'e1'
+                        ? 'Evaluación completada — proyecto activo'
+                        : section.id === 'e4'
+                        ? `${pr.done}/${pr.total} inversionistas • Se contabilizan inversionistas con SA Firmado`
                         : `${pr.done}/${pr.total} hitos • Haz clic en cada hito para marcarlo como completado`}
                     </div>
                   </div>
@@ -4778,13 +4833,12 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                               </>}
                               {isFondeo && <>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Monto USD</th>
-                                <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Fecha GFD</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>GFD Proyectado</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>GFD Recibido</th>
-                                <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Fecha Final Dep.</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>FD Esperado</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>FD Recibido</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Total Recibido</th>
+                                <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Total Pendiente</th>
                                 <th style={{padding:'10px 12px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}>Acción</th>
                               </>}
                               {!isFondeo && <th style={{padding:'10px 8px', textAlign:'center', fontSize:11, fontWeight:700, color:'var(--gw-muted)', textTransform:'uppercase', letterSpacing:'0.5px'}}></th>}
@@ -4808,7 +4862,27 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 {/* Porcentaje (E4 & E5 only) */}
                                 {!isFondeo && (
                                   <td style={{padding:'10px 12px', textAlign:'center'}}>
-                                    <span style={{fontSize:14, fontWeight:700, color:'var(--gw-heading)'}}>{part.porcentaje}%</span>
+                                    {editingPartIdx === idx && isE4 ? (
+                                      <input type="number" min="0" max="100" step="0.01"
+                                        value={part.porcentaje || ''}
+                                        onChange={e => {
+                                          const pct = e.target.value;
+                                          const target = parseFloat(viewingProject.fields?.MontoTarget || 0);
+                                          const m = target && pct ? Math.round(target * parseFloat(pct) / 100) : '';
+                                          const gp = part.gfdPct || 30;
+                                          const fp = part.finalDepositPct || 70;
+                                          updatePartFieldLocal(idx, 'porcentaje', parseFloat(pct) || 0);
+                                          if (m) {
+                                            updatePartFieldLocal(idx, 'montoInversion', m);
+                                            updatePartFieldLocal(idx, 'gfd', Math.round(m * gp / 100));
+                                            updatePartFieldLocal(idx, 'finalDeposit', Math.round(m * fp / 100));
+                                          }
+                                        }}
+                                        style={{width:60, padding:'4px 6px', border:'1px solid var(--gw-cyan)', borderRadius:6, textAlign:'center', fontSize:12, background:'var(--gw-page-bg)', color:'var(--gw-heading)'}}
+                                      />
+                                    ) : (
+                                      <span style={{fontSize:14, fontWeight:700, color:'var(--gw-heading)'}}>{part.porcentaje}%</span>
+                                    )}
                                   </td>
                                 )}
 
@@ -4816,56 +4890,101 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 {isE4 && <>
                                   {/* Monto */}
                                   <td style={{padding:'10px 12px', textAlign:'center', fontSize:13, fontWeight:600, color:'var(--gw-heading)'}}>
-                                    {part.montoInversion ? `$${Number(part.montoInversion).toLocaleString()}` : '—'}
+                                    {editingPartIdx === idx ? (
+                                      <input type="number" min="0"
+                                        value={part.montoInversion || ''}
+                                        onChange={e => {
+                                          const m = parseFloat(e.target.value) || 0;
+                                          const gp = part.gfdPct || 30;
+                                          const fp = part.finalDepositPct || 70;
+                                          updatePartFieldLocal(idx, 'montoInversion', m);
+                                          updatePartFieldLocal(idx, 'gfd', Math.round(m * gp / 100));
+                                          updatePartFieldLocal(idx, 'finalDeposit', Math.round(m * fp / 100));
+                                        }}
+                                        style={{width:100, padding:'4px 6px', border:'1px solid var(--gw-cyan)', borderRadius:6, textAlign:'center', fontSize:12, background:'var(--gw-page-bg)', color:'var(--gw-heading)'}}
+                                      />
+                                    ) : (
+                                      part.montoInversion ? `$${Number(part.montoInversion).toLocaleString()}` : '—'
+                                    )}
                                   </td>
                                   {/* Estado */}
                                   <td style={{padding:'10px 12px', textAlign:'center'}}>
-                                    {(() => {
-                                      const invData = allInversionistas.find(i => i.id === part.invId);
-                                      const invEstado = invData?.fields?.Estado || (part.esProspecto ? 'Prospecto' : 'Activo');
-                                      const est = invEstado === 'Activo' ? 'Activo' : 'Prospecto';
-                                      const isActivo = est === 'Activo';
-                                      return (
-                                        <span style={{
-                                          padding:'3px 10px', borderRadius:99, fontSize:11, fontWeight:700,
-                                          background: isActivo ? 'rgba(46,204,138,0.12)' : 'rgba(26,143,168,0.12)',
-                                          color: isActivo ? 'var(--gw-success)' : 'var(--gw-cyan)',
-                                        }}>{est}</span>
-                                      );
-                                    })()}
+                                    {editingPartIdx === idx ? (
+                                      <select
+                                        value={part.aporteEstado || 'Pendiente'}
+                                        onChange={e => updatePartFieldLocal(idx, 'aporteEstado', e.target.value)}
+                                        style={{padding:'4px 6px', border:'1px solid var(--gw-cyan)', borderRadius:6, fontSize:11, background:'var(--gw-page-bg)', color:'var(--gw-heading)', cursor:'pointer'}}
+                                      >
+                                        <option value="Pendiente">Pendiente</option>
+                                        <option value="Activo">Activo</option>
+                                        <option value="Completado">Completado</option>
+                                      </select>
+                                    ) : (
+                                      (() => {
+                                        const invData = allInversionistas.find(i => i.id === part.invId);
+                                        const invEstado = invData?.fields?.Estado || (part.esProspecto ? 'Prospecto' : 'Activo');
+                                        const est = invEstado === 'Activo' ? 'Activo' : 'Prospecto';
+                                        const isActivo = est === 'Activo';
+                                        return (
+                                          <span style={{
+                                            padding:'3px 10px', borderRadius:99, fontSize:11, fontWeight:700,
+                                            background: isActivo ? 'rgba(46,204,138,0.12)' : 'rgba(26,143,168,0.12)',
+                                            color: isActivo ? 'var(--gw-success)' : 'var(--gw-cyan)',
+                                          }}>{est}</span>
+                                        );
+                                      })()
+                                    )}
                                   </td>
                                   {/* Notificar DD */}
                                   <td style={{padding:'10px 12px', textAlign:'center'}}>
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          await postGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items`, {
-                                            fields: {
-                                              Title: `Solicitud DD — ${part.nombre} — ${viewingProject.fields?.Title || ''}`,
-                                              TipoHito: 'Solicitud DD',
-                                              FechadeSolicitud: new Date().toISOString(),
-                                              'EstadoAprobaci_x00f3_n': 'Pendiente',
-                                              ProyectoLookupId: String(viewingProject.id),
-                                              Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
-                                              MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
-                                              Participaci_x00f3_n: (Number(part.porcentaje) || 0) / 100,
-                                              MontoGFD: Number(part.gfd) || 0,
-                                              MontoFinalDeposit: Number(part.finalDeposit) || 0,
-                                            }
-                                          });
-                                          showToast(`📧 Solicitud DD creada para ${part.nombre}`);
-                                        } catch(err) {
-                                          showToast('❌ Error: ' + err.message, 'error');
-                                        }
-                                      }}
-                                      style={{
-                                        padding:'5px 12px', background:'rgba(107,45,164,0.1)', border:'1px solid rgba(107,45,164,0.3)',
-                                        borderRadius:8, fontSize:11, cursor:'pointer', color:'#6B2DA4', fontWeight:600, transition:'all 0.2s',
-                                        display:'inline-flex', alignItems:'center', gap:4
-                                      }}
-                                      onMouseEnter={e => { e.currentTarget.style.background='rgba(107,45,164,0.2)'; }}
-                                      onMouseLeave={e => { e.currentTarget.style.background='rgba(107,45,164,0.1)'; }}
-                                    >📧 Solicitar DD</button>
+                                    {editingPartIdx === idx ? (
+                                      <div style={{display:'flex', flexDirection:'column', gap:4, alignItems:'center'}}>
+                                        <div style={{fontSize:10, color:'var(--gw-muted)'}}>
+                                          <span>Fecha Cierre:</span>
+                                          <input type="date"
+                                            value={part.fechaCierreNeg ? part.fechaCierreNeg.split('T')[0] : ''}
+                                            onChange={e => updatePartFieldLocal(idx, 'fechaCierreNeg', e.target.value)}
+                                            style={{marginLeft:4, padding:'2px 4px', border:'1px solid var(--gw-border)', borderRadius:4, fontSize:10, background:'var(--gw-page-bg)', color:'var(--gw-heading)'}}
+                                          />
+                                        </div>
+                                        <input type="text" placeholder="Observaciones"
+                                          value={part.observaciones || ''}
+                                          onChange={e => updatePartFieldLocal(idx, 'observaciones', e.target.value)}
+                                          style={{width:'100%', padding:'3px 6px', border:'1px solid var(--gw-border)', borderRadius:4, fontSize:10, background:'var(--gw-page-bg)', color:'var(--gw-heading)'}}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            await postGraph(`/sites/${siteId}/lists/${LISTS.hitos}/items`, {
+                                              fields: {
+                                                Title: `Solicitud DD — ${part.nombre} — ${viewingProject.fields?.Title || ''}`,
+                                                TipoHito: 'Solicitud DD',
+                                                FechadeSolicitud: new Date().toISOString(),
+                                                'EstadoAprobaci_x00f3_n': 'Pendiente',
+                                                ProyectoLookupId: String(viewingProject.id),
+                                                Correo: part.email || (allInversionistas.find(i => i.id === part.invId)?.fields?.field_2) || '',
+                                                MontoInversi_x00f3_n: Number(part.montoInversion) || 0,
+                                                Participaci_x00f3_n: (Number(part.porcentaje) || 0) / 100,
+                                                MontoGFD: Number(part.gfd) || 0,
+                                                MontoFinalDeposit: Number(part.finalDeposit) || 0,
+                                              }
+                                            });
+                                            showToast(`📧 Solicitud DD creada para ${part.nombre}`);
+                                          } catch(err) {
+                                            showToast('❌ Error: ' + err.message, 'error');
+                                          }
+                                        }}
+                                        style={{
+                                          padding:'5px 12px', background:'rgba(107,45,164,0.1)', border:'1px solid rgba(107,45,164,0.3)',
+                                          borderRadius:8, fontSize:11, cursor:'pointer', color:'#6B2DA4', fontWeight:600, transition:'all 0.2s',
+                                          display:'inline-flex', alignItems:'center', gap:4
+                                        }}
+                                        onMouseEnter={e => { e.currentTarget.style.background='rgba(107,45,164,0.2)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background='rgba(107,45,164,0.1)'; }}
+                                      >📧 Solicitar DD</button>
+                                    )}
                                   </td>
                                 </>}
 
@@ -4956,33 +5075,13 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                   <td style={{padding:'10px 12px', textAlign:'center', fontSize:13, fontWeight:600, color:'var(--gw-heading)'}}>
                                     {part.montoInversion ? `$${Number(part.montoInversion).toLocaleString()}` : '—'}
                                   </td>
-                                  {/* Fecha GFD */}
-                                  <td style={{padding:'10px 8px', textAlign:'center'}}>
-                                    <input type="date" value={part.fechaGfd || ''} onChange={e => updatePartField(idx, 'fechaGfd', e.target.value)}
-                                      style={{padding:'4px 6px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:11, width:120}} />
-                                  </td>
                                   {/* GFD Proyectado */}
                                   <td style={{padding:'10px 8px', textAlign:'center', fontSize:12, fontWeight:600, color:'var(--gw-cyan)'}}>
                                     {part.gfd ? `$${Number(part.gfd).toLocaleString()}` : '—'}
                                   </td>
                                   {/* GFD Recibido */}
                                   <td style={{padding:'10px 8px', textAlign:'center'}}>
-                                    {(part.abonos && part.abonos.length > 0) ? (
-                                      <div>
-                                        <div style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)'}}>${Number(part.gfdRecibido||0).toLocaleString()}</div>
-                                        <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:5, marginTop:3, width:80, margin:'3px auto 0'}}>
-                                          <div style={{width:`${Math.min(100, part.gfd > 0 ? ((part.gfdRecibido||0)/part.gfd*100) : 0)}%`, height:'100%', borderRadius:99, background: (part.gfdRecibido||0) >= part.gfd ? 'var(--gw-success)' : 'var(--gw-cyan)', transition:'width 0.4s'}} />
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <input type="number" min="0" step="100" value={part.gfdRecibido || ''} onChange={e => updatePartFieldLocal(idx, 'gfdRecibido', e.target.value)} onBlur={savePartToSP}
-                                        placeholder="0" style={{padding:'4px 6px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:12, width:90, textAlign:'center'}} />
-                                    )}
-                                  </td>
-                                  {/* Fecha Final Deposit */}
-                                  <td style={{padding:'10px 8px', textAlign:'center'}}>
-                                    <input type="date" value={part.fechaFd || ''} onChange={e => updatePartField(idx, 'fechaFd', e.target.value)}
-                                      style={{padding:'4px 6px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:11, width:120}} />
+                                    <div style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)'}}>${Number(part.gfdRecibido||0).toLocaleString()}</div>
                                   </td>
                                   {/* FD Esperado */}
                                   <td style={{padding:'10px 8px', textAlign:'center', fontSize:12, fontWeight:600, color:'var(--gw-cyan)'}}>
@@ -4990,34 +5089,35 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                   </td>
                                   {/* FD Recibido */}
                                   <td style={{padding:'10px 8px', textAlign:'center'}}>
-                                    {(part.abonos && part.abonos.length > 0) ? (
-                                      <div>
-                                        <div style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)'}}>${Number(part.fdRecibido||0).toLocaleString()}</div>
-                                        <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:5, marginTop:3, width:80, margin:'3px auto 0'}}>
-                                          <div style={{width:`${Math.min(100, part.finalDeposit > 0 ? ((part.fdRecibido||0)/part.finalDeposit*100) : 0)}%`, height:'100%', borderRadius:99, background: (part.fdRecibido||0) >= part.finalDeposit ? 'var(--gw-success)' : 'var(--gw-cyan)', transition:'width 0.4s'}} />
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <input type="number" min="0" step="100" value={part.fdRecibido || ''} onChange={e => updatePartFieldLocal(idx, 'fdRecibido', e.target.value)} onBlur={savePartToSP}
-                                        placeholder="0" style={{padding:'4px 6px', borderRadius:6, border:'1px solid var(--gw-border)', background:'var(--gw-page-bg)', color:'var(--gw-body)', fontSize:12, width:90, textAlign:'center'}} />
-                                    )}
+                                    <div style={{fontSize:12, fontWeight:700, color:'var(--gw-heading)'}}>${Number(part.fdRecibido||0).toLocaleString()}</div>
                                   </td>
-                                  {/* Total Recibido = GFD Recibido + FD Recibido with % vs Monto USD */}
+                                  {/* Total Recibido */}
                                   <td style={{padding:'10px 8px', textAlign:'center'}}>
                                     {(() => {
-                                      const gfdR = Number(part.gfdRecibido) || 0;
-                                      const fdR = Number(part.fdRecibido) || 0;
-                                      const totalRec = gfdR + fdR;
+                                      const totalRec = (Number(part.gfdRecibido) || 0) + (Number(part.fdRecibido) || 0);
                                       const montoTotal = Number(part.montoInversion) || 0;
                                       const pct = montoTotal > 0 ? Math.min(100, Math.round(totalRec / montoTotal * 100)) : 0;
                                       const isComplete = pct >= 100;
                                       return (
                                         <div>
                                           <div style={{fontSize:13, fontWeight:800, color: isComplete ? 'var(--gw-success)' : 'var(--gw-heading)'}}>${totalRec.toLocaleString()}</div>
-                                          <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:1}}>{pct}% de ${montoTotal.toLocaleString()}</div>
-                                          <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:6, marginTop:4, width:90, margin:'4px auto 0'}}>
+                                          <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:1}}>{pct}%</div>
+                                          <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:5, marginTop:3, width:70, margin:'0 auto'}}>
                                             <div style={{width:`${pct}%`, height:'100%', borderRadius:99, background: isComplete ? 'var(--gw-success)' : pct >= 50 ? 'var(--gw-cyan)' : 'var(--gw-warning)', transition:'width 0.4s'}} />
                                           </div>
+                                        </div>
+                                      );
+                                    })()}
+                                  </td>
+                                  {/* Total Pendiente */}
+                                  <td style={{padding:'10px 8px', textAlign:'center'}}>
+                                    {(() => {
+                                      const totalRec = (Number(part.gfdRecibido) || 0) + (Number(part.fdRecibido) || 0);
+                                      const montoTotal = Number(part.montoInversion) || 0;
+                                      const pendiente = Math.max(0, montoTotal - totalRec);
+                                      return (
+                                        <div style={{fontSize:13, fontWeight:700, color: pendiente === 0 ? 'var(--gw-success)' : '#e74c3c'}}>
+                                          {pendiente === 0 ? '✅ $0' : `$${pendiente.toLocaleString()}`}
                                         </div>
                                       );
                                     })()}
@@ -5139,11 +5239,26 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                 {!isFondeo && (
                                   <td style={{padding:'10px 8px', textAlign:'center'}}>
                                     {isE4 && (
-                                      <button onClick={() => removeParticipacion(idx)}
-                                        style={{background:'none', border:'none', cursor:'pointer', color:'var(--gw-muted)', fontSize:14, padding:'4px 6px', borderRadius:6, transition:'all 0.2s'}}
-                                        onMouseEnter={e => { e.currentTarget.style.color='#e74c3c'; e.currentTarget.style.background='rgba(231,76,60,0.08)'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.color='var(--gw-muted)'; e.currentTarget.style.background='none'; }}
-                                        title="Eliminar">✕</button>
+                                      <div style={{display:'flex', gap:2, justifyContent:'center'}}>
+                                        {editingPartIdx === idx ? (
+                                          <button onClick={() => { savePartToSP(); setEditingPartIdx(null); }}
+                                            style={{background:'none', border:'none', cursor:'pointer', color:'var(--gw-success)', fontSize:14, padding:'4px 6px', borderRadius:6, transition:'all 0.2s'}}
+                                            onMouseEnter={e => { e.currentTarget.style.background='rgba(46,204,138,0.08)'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.background='none'; }}
+                                            title="Guardar cambios">✅</button>
+                                        ) : (
+                                          <button onClick={() => setEditingPartIdx(idx)}
+                                            style={{background:'none', border:'none', cursor:'pointer', color:'var(--gw-muted)', fontSize:13, padding:'4px 6px', borderRadius:6, transition:'all 0.2s'}}
+                                            onMouseEnter={e => { e.currentTarget.style.color='var(--gw-cyan)'; e.currentTarget.style.background='rgba(26,143,168,0.08)'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.color='var(--gw-muted)'; e.currentTarget.style.background='none'; }}
+                                            title="Editar">✏️</button>
+                                        )}
+                                        <button onClick={() => { setEditingPartIdx(null); removeParticipacion(idx); }}
+                                          style={{background:'none', border:'none', cursor:'pointer', color:'var(--gw-muted)', fontSize:14, padding:'4px 6px', borderRadius:6, transition:'all 0.2s'}}
+                                          onMouseEnter={e => { e.currentTarget.style.color='#e74c3c'; e.currentTarget.style.background='rgba(231,76,60,0.08)'; }}
+                                          onMouseLeave={e => { e.currentTarget.style.color='var(--gw-muted)'; e.currentTarget.style.background='none'; }}
+                                          title="Eliminar">✕</button>
+                                      </div>
                                     )}
                                   </td>
                                 )}
@@ -5160,8 +5275,6 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:13, fontWeight:800, color:'var(--gw-heading)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.montoInversion)||0),0).toLocaleString()}
                                     </td>
-                                    {/* Fecha GFD */}
-                                    <td />
                                     {/* GFD Proyectado */}
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:12, fontWeight:700, color:'var(--gw-cyan)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.gfd)||0),0).toLocaleString()}
@@ -5170,8 +5283,6 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:12, fontWeight:700, color:'var(--gw-success)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.gfdRecibido)||0),0).toLocaleString()}
                                     </td>
-                                    {/* Fecha Final Dep. */}
-                                    <td />
                                     {/* FD Esperado */}
                                     <td style={{padding:'10px 12px', textAlign:'center', fontSize:12, fontWeight:700, color:'var(--gw-cyan)'}}>
                                       ${participaciones.reduce((s,p)=>s+(Number(p.finalDeposit)||0),0).toLocaleString()}
@@ -5190,10 +5301,23 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                         return (
                                           <div>
                                             <div style={{fontSize:13, fontWeight:800, color: isComplete ? 'var(--gw-success)' : 'var(--gw-heading)'}}>${totalRec.toLocaleString()}</div>
-                                            <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:1}}>{pct}% completado</div>
-                                            <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:6, marginTop:4, width:90, margin:'4px auto 0'}}>
+                                            <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:1}}>{pct}%</div>
+                                            <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:5, marginTop:3, width:70, margin:'0 auto'}}>
                                               <div style={{width:`${pct}%`, height:'100%', borderRadius:99, background: isComplete ? 'var(--gw-success)' : pct >= 50 ? 'var(--gw-cyan)' : 'var(--gw-warning)', transition:'width 0.4s'}} />
                                             </div>
+                                          </div>
+                                        );
+                                      })()}
+                                    </td>
+                                    {/* Total Pendiente */}
+                                    <td style={{padding:'10px 12px', textAlign:'center'}}>
+                                      {(() => {
+                                        const totalRec = participaciones.reduce((s,p)=>s+(Number(p.gfdRecibido)||0)+(Number(p.fdRecibido)||0),0);
+                                        const totalMonto = participaciones.reduce((s,p)=>s+(Number(p.montoInversion)||0),0);
+                                        const pendiente = Math.max(0, totalMonto - totalRec);
+                                        return (
+                                          <div style={{fontSize:13, fontWeight:800, color: pendiente === 0 ? 'var(--gw-success)' : '#e74c3c'}}>
+                                            {pendiente === 0 ? '✅ $0' : `$${pendiente.toLocaleString()}`}
                                           </div>
                                         );
                                       })()}
@@ -5799,7 +5923,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
             )}
             {filtered.map(p => {
               const _blob = (() => { try { return p.fields?.Milestones ? JSON.parse(p.fields.Milestones) : {}; } catch(e) { return {}; } })();
-              const progress = { percentage: typeof _blob._overall_pct === 'number' ? _blob._overall_pct : calculateMilestoneProgress(p.fields?.Milestones).percentage };
+              const progress = { percentage: typeof _blob._overall_pct === 'number' ? _blob._overall_pct : 0 };
               return (
                 <tr key={p.id}
                   onClick={() => openProject(p)}
