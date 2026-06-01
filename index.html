@@ -2687,6 +2687,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
   // ── Abonos modal state ──
   const [abonoModal, setAbonoModal] = useState(null); // { idx, part }
   const [editingPartIdx, setEditingPartIdx] = useState(null); // Index of participacion being edited inline
+  const [deletePartIdx, setDeletePartIdx] = useState(null); // Index of participacion pending delete confirmation
   const [newAbono, setNewAbono] = useState({ fecha:'', monto:'', tipo:'gfd', referencia:'', notas:'' });
 
   const [form, setForm] = useState({
@@ -3894,6 +3895,44 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
             boxShadow:'0 4px 24px rgba(0,0,0,0.25)'
           }}>{toast.msg}</div>
         )}
+
+        {/* ── DELETE INVESTOR CONFIRMATION MODAL ── */}
+        {deletePartIdx !== null && (() => {
+          const partToDelete = participaciones[deletePartIdx];
+          return (
+            <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center'}}
+              onClick={() => setDeletePartIdx(null)}>
+              <div style={{background:'white', borderRadius:16, padding:'32px', maxWidth:440, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}
+                onClick={e => e.stopPropagation()}>
+                <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:16}}>
+                  <div style={{width:44, height:44, borderRadius:12, background:'rgba(231,76,60,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22}}>🗑️</div>
+                  <div>
+                    <div style={{fontSize:18, fontWeight:700, color:'var(--gw-heading)'}}>Eliminar Inversionista</div>
+                    <div style={{fontSize:12, color:'var(--gw-muted)'}}>Esta acción no se puede deshacer</div>
+                  </div>
+                </div>
+                <div style={{padding:'16px', background:'rgba(231,76,60,0.05)', borderRadius:10, border:'1px solid rgba(231,76,60,0.15)', marginBottom:20}}>
+                  <p style={{fontSize:14, color:'var(--gw-body)', margin:0, lineHeight:1.5}}>
+                    ¿Estás seguro de que deseas eliminar a <strong style={{color:'var(--gw-heading)'}}>{partToDelete?.nombre || 'este inversionista'}</strong> del proyecto?
+                  </p>
+                  <p style={{fontSize:12, color:'var(--gw-muted)', margin:'8px 0 0', lineHeight:1.4}}>
+                    Se eliminará la participación y todos los hitos asociados en SharePoint. El inversionista seguirá existiendo en la base de datos general.
+                  </p>
+                </div>
+                <div style={{display:'flex', gap:10, justifyContent:'flex-end'}}>
+                  <button onClick={() => setDeletePartIdx(null)}
+                    style={{padding:'10px 20px', background:'var(--gw-page-bg)', border:'1px solid var(--gw-border)', borderRadius:10, fontSize:13, fontWeight:600, color:'var(--gw-body)', cursor:'pointer'}}>
+                    Cancelar
+                  </button>
+                  <button onClick={() => { setEditingPartIdx(null); removeParticipacion(deletePartIdx); setDeletePartIdx(null); }}
+                    style={{padding:'10px 20px', background:'#e74c3c', border:'none', borderRadius:10, fontSize:13, fontWeight:600, color:'white', cursor:'pointer'}}>
+                    Sí, eliminar
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── HITO DETAIL MODAL ── */}
         {hitoDetailModal && (() => {
@@ -5301,11 +5340,11 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                             onMouseLeave={e => { e.currentTarget.style.color='var(--gw-muted)'; e.currentTarget.style.background='none'; }}
                                             title="Editar">✏️</button>
                                         )}
-                                        <button onClick={() => { setEditingPartIdx(null); removeParticipacion(idx); }}
+                                        <button onClick={() => setDeletePartIdx(idx)}
                                           style={{background:'none', border:'none', cursor:'pointer', color:'var(--gw-muted)', fontSize:14, padding:'4px 6px', borderRadius:6, transition:'all 0.2s'}}
                                           onMouseEnter={e => { e.currentTarget.style.color='#e74c3c'; e.currentTarget.style.background='rgba(231,76,60,0.08)'; }}
                                           onMouseLeave={e => { e.currentTarget.style.color='var(--gw-muted)'; e.currentTarget.style.background='none'; }}
-                                          title="Eliminar">✕</button>
+                                          title="Eliminar inversionista">🗑️</button>
                                       </div>
                                     )}
                                   </td>
@@ -7413,7 +7452,7 @@ function InversionistasPage({ siteId, siteProy, onNavigateTo, onNavigateToProjec
               const baseUrl = `https://gwealthm.sharepoint.com/sites/Inversionistas/Documentos%20de%20Inversionistas/${encodeURIComponent(invName)}`;
               const folders = [
                 { name: 'Identificacion', icon: '🪪', desc: 'Documentos de identidad, pasaporte, KYC' },
-                { name: 'Bancario', icon: '🏦', desc: 'Certificaciones bancarias, formularios' },
+                { name: 'Entity', icon: '🏢', desc: 'Documentos asociados a la LLC del inversionista' },
               ];
               return (
                 <div style={{display:'flex', flexDirection:'column', gap:20}}>
