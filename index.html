@@ -4611,7 +4611,7 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                   <option value="">-- Seleccionar --</option>
                                   {loadingInv && <option disabled>Cargando...</option>}
                                   {allInversionistas.map(i => (
-                                    <option key={i.id} value={i.id}>{i.fields?.Title || i.id}</option>
+                                    <option key={i.id} value={i.id}>{i.fields?.Title || i.id}{i.fields?.field_2 ? ` — ${i.fields.field_2}` : ''}</option>
                                   ))}
                                 </select>
                               </div>
