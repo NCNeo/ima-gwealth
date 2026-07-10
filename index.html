@@ -5183,14 +5183,15 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                     {(() => {
                                       const totalRec = (Number(part.gfdRecibido) || 0) + (Number(part.fdRecibido) || 0);
                                       const montoTotal = Number(part.montoInversion) || 0;
-                                      const pct = montoTotal > 0 ? Math.min(100, Math.round(totalRec / montoTotal * 100)) : 0;
+                                      const pct = montoTotal > 0 ? Math.round(totalRec / montoTotal * 100) : 0;
                                       const isComplete = pct >= 100;
+                                      const hasExcedente = pct > 100;
                                       return (
                                         <div>
                                           <div style={{fontSize:13, fontWeight:800, color: isComplete ? 'var(--gw-success)' : 'var(--gw-heading)'}}>${totalRec.toLocaleString()}</div>
-                                          <div style={{fontSize:10, color:'var(--gw-muted)', marginTop:1}}>{pct}%</div>
+                                          <div style={{fontSize:10, color: hasExcedente ? 'var(--gw-success)' : 'var(--gw-muted)', marginTop:1, fontWeight: hasExcedente ? 700 : 400}}>{pct}%</div>
                                           <div style={{background:'var(--gw-border)', borderRadius:99, overflow:'hidden', height:5, marginTop:3, width:70, margin:'0 auto'}}>
-                                            <div style={{width:`${pct}%`, height:'100%', borderRadius:99, background: isComplete ? 'var(--gw-success)' : pct >= 50 ? 'var(--gw-cyan)' : 'var(--gw-warning)', transition:'width 0.4s'}} />
+                                            <div style={{width:`${Math.min(100, pct)}%`, height:'100%', borderRadius:99, background: isComplete ? 'var(--gw-success)' : pct >= 50 ? 'var(--gw-cyan)' : 'var(--gw-warning)', transition:'width 0.4s'}} />
                                           </div>
                                         </div>
                                       );
@@ -5201,10 +5202,11 @@ function ProyectosPage({ siteId, siteInv, onNavigateTo, initialProject, onInitia
                                     {(() => {
                                       const totalRec = (Number(part.gfdRecibido) || 0) + (Number(part.fdRecibido) || 0);
                                       const montoTotal = Number(part.montoInversion) || 0;
-                                      const pendiente = Math.max(0, montoTotal - totalRec);
+                                      const diff = montoTotal - totalRec;
+                                      const hasExcedente = diff < 0;
                                       return (
-                                        <div style={{fontSize:13, fontWeight:700, color: pendiente === 0 ? 'var(--gw-success)' : '#e74c3c'}}>
-                                          {pendiente === 0 ? '✅ $0' : `$${pendiente.toLocaleString()}`}
+                                        <div style={{fontSize:13, fontWeight:700, color: diff === 0 ? 'var(--gw-success)' : hasExcedente ? 'var(--gw-success)' : '#e74c3c'}}>
+                                          {diff === 0 ? '✅ $0' : hasExcedente ? `✅ Excedente: $${Math.abs(diff).toLocaleString()}` : `$${diff.toLocaleString()}`}
                                         </div>
                                       );
                                     })()}
